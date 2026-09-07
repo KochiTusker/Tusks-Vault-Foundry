@@ -1,0 +1,23 @@
+{
+  "name": "tusks-vault-vtt",
+  "version": "1.0.2",
+  "private": true,
+  "type": "module",
+  "description": "Foundry VTT module for Tusk's Vault \u2014 ask your campaign's own lore from the chat bar.",
+  "license": "MIT",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "node tools/build-module.mjs",
+    "verify": "npm test && node scripts/audit-current-tree.mjs --dev-mode",
+    "release": "node scripts/release-to-public.mjs",
+    "release:dry-run": "node scripts/release-to-public.mjs --dry-run",
+    "audit:tree": "node scripts/audit-current-tree.mjs",
+    "audit:dev": "node scripts/audit-current-tree.mjs --dev-mode",
+    "audit:history": "node scripts/audit-history.mjs",
+    "hooks:install": "node scripts/install-hooks.mjs"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.6"
+  }
+}

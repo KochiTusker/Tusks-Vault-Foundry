@@ -1,0 +1,255 @@
+{
+  "TUSKS_VAULT": {
+    "settings": {
+      "bridgeUrl": {
+        "name": "Vault address",
+        "hint": "Where Tusk's Vault is listening on this machine. Leave blank to find it automatically — set it only if you run Vault on an unusual port. Stored per browser, not shared with players."
+      },
+      "enabled": {
+        "name": "Enable in this world",
+        "hint": "Turn the archivist off for this world without uninstalling the module."
+      },
+      "askPolicy": {
+        "name": "Who may ask",
+        "hint": "The lowest rank at which someone may put a question to the archivist. Named exceptions are added on top of this, in Chosen askers below.",
+        "nobody": "Nobody by rank — only the chosen askers below",
+        "gamemaster": "Gamemaster only",
+        "gm": "Assistant GM and above",
+        "trusted": "Trusted Player and above",
+        "everyone": "Anyone at the table"
+      },
+      "replyVisibility": {
+        "name": "Who sees the answer",
+        "hint": "Set separately from who may ask, so players can put questions to the archivist while you read the answers first. Whispering bounds who SEES an answer, not what a player can pull: the archive has no notion of what you have revealed yet.",
+        "asker": "The asker and the GM",
+        "gm": "The GM only — you decide what to share",
+        "public": "Everyone, in the open"
+      },
+      "allowList": {
+        "name": "Chosen askers",
+        "label": "Choose who may ask",
+        "hint": "Named people who may always ask, whatever their rank. Use this for a co-GM on a player account, or a single loremaster at an otherwise closed table."
+      },
+      "triggerCommand": {
+        "name": "Chat command",
+        "hint": "Typed with a leading slash. The default gives you /tusk your question here."
+      },
+      "botName": {
+        "name": "Archivist name",
+        "hint": "The name answers are posted under, and the @mention that also triggers a question."
+      },
+      "connect": {
+        "name": "Connection",
+        "label": "Connect to Tusk's Vault",
+        "hint": "Find Tusk's Vault on this machine and pair with it. You will be shown a code to confirm in the Vault dashboard."
+      },
+      "answerSource": {
+        "name": "Where answers come from",
+        "hint": "Tusk's Vault is the full experience and it is free — this module is its Foundry end. Lite is a cut-down archivist that runs inside Foundry alone, for trying the idea before installing anything.",
+        "bridge": "Tusk's Vault (full, free, recommended)",
+        "lite": "Lite — journals only, inside Foundry"
+      },
+      "liteFolder": {
+        "name": "Lore folder",
+        "hint": "Lite mode reads the journal entries in this folder, and nothing else. Each entry is one source, cited by its name. Entries a player cannot open are never used to answer that player."
+      },
+      "liteAnswers": {
+        "name": "Lite: write answers, not just find passages",
+        "hint": "Off, lite searches your journals and quotes what it finds — no key, no network, no cost. On, it also needs a Gemini key on the GM's browser and writes a prose answer. Read the note under Gemini key before turning this on."
+      },
+      "liteModel": {
+        "name": "Lite: Gemini model",
+        "hint": "Lite uses Gemini flash and flash-lite, version 3 and above. Leave this alone unless you want a specific one — if Google retires the model, lite finds a replacement by itself and updates this. Use Choose from available models to pick, or TusksVault.models() in the F12 console to look."
+      },
+      "liteKey": {
+        "name": "Gemini key (lite mode)",
+        "label": "Set the Gemini key",
+        "hint": "Needed only for lite answers. Stored in this browser alone, never in the world, never shown to players. Explains what it can and cannot protect before it takes anything."
+      },
+      "liteModelPicker": {
+        "name": "Model",
+        "label": "Choose from available models",
+        "hint": "Lists the flash and flash-lite models your key can reach right now, newest first. Fetched live, so it is never out of date."
+      },
+      "liteFilters": {
+        "name": "Lite: apply Google's content filters",
+        "hint": "Off by default, and off is what Tusk's Vault does too. A campaign archive gets asked about war, murder and worse because that is what your notes are about, and a filtered refusal reads as the archive not knowing rather than declining. Turn this on if your table wants Google's standard filtering — remember answers land in a chat log everyone reads."
+      },
+      "liteWhyUpgrade": {
+        "name": "The full version",
+        "label": "Why move up to Tusk's Vault",
+        "hint": "A side-by-side of what lite does and what the full application does. Tusk's Vault is free."
+      }
+    },
+    "roles": {
+      "gamemaster": "Gamemaster",
+      "assistant": "Assistant GM",
+      "trusted": "Trusted Player",
+      "player": "Player",
+      "none": "No access"
+    },
+    "dialog": {
+      "pairing": {
+        "title": "Pair with Tusk's Vault",
+        "body": "Open the Tusk's Vault dashboard. It is showing a pairing request with a code — check it matches the one below, then click Allow.",
+        "hint": "If the codes do not match, click Deny: something else asked to connect.",
+        "close": "Close"
+      },
+      "allowList": {
+        "title": "Chosen askers",
+        "body": "Anyone ticked here may ask the archivist whatever their rank. This is added to the rank you set in Who may ask — it never takes access away.",
+        "hint": "With Who may ask set to \"Nobody by rank\", this list becomes the whole policy: a GM who is not ticked cannot ask either.",
+        "empty": "This world has no users yet.",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "liteKey": {
+        "title": "Gemini key for lite mode",
+        "body": "Lite mode can write prose answers using Google's Gemini, which has a free tier. The key is stored in this browser only — never in the world, so no player at your table can read it.",
+        "riskHead": "Before you paste one, three things worth knowing:",
+        "riskModules": "Foundry does not sandbox modules. Every other module you have installed runs on this page and can read this browser's storage — including this key. Only install modules you trust.",
+        "riskPlayers": "Your players cannot read it, and it is never sent to the Foundry server. It goes from this browser straight to Google.",
+        "riskCap": "Use a key made for this and nothing else, and set a spending cap on it in Google's console. That turns the worst case from an open tab into a fixed number.",
+        "riskFull": "Tusk's Vault keeps the key off the browser entirely. It is free, and this is the main reason to move up to it once you have decided you like this.",
+        "present": "A key is set in this browser ({length} characters). Type a new one to replace it.",
+        "absent": "No key is set in this browser.",
+        "placeholder": "Paste your Gemini API key",
+        "where": "Get a free key at aistudio.google.com/apikey",
+        "save": "Save",
+        "clear": "Remove the key",
+        "cancel": "Cancel"
+      },
+      "model": {
+        "title": "Choose a Gemini model",
+        "body": "{allowed} of the {total} models your key can reach are flash or flash-lite, version 3 or above. Newest first.",
+        "note": "Flash is the quality end and flash-lite the cheap, fast end. If the one you pick is later retired, lite moves to the newest available on its own.",
+        "flash": "flash",
+        "lite": "flash-lite",
+        "save": "Use this model",
+        "cancel": "Cancel"
+      },
+      "why": {
+        "title": "Lite, and the full Tusk's Vault",
+        "body": "Lite runs inside Foundry so you can try the idea without installing anything. Tusk's Vault is the whole application, it is free and open source, and this module is its Foundry end.",
+        "lite": "Lite",
+        "vault": "Tusk's Vault",
+        "note": "Both are MIT licensed. Moving up costs nothing but a download, and this module keeps working — you switch it to Tusk's Vault at the top of these settings.",
+        "link": "Read the guide and install",
+        "repo": "Source on GitHub",
+        "close": "Close",
+        "rows": {
+          "lore": {
+            "label": "Where your lore lives",
+            "lite": "Journal entries you paste into one folder",
+            "vault": "The notes you already keep — Word documents, PDFs, Markdown, or a whole Obsidian vault"
+          },
+          "size": {
+            "label": "How much it can read",
+            "lite": "Only what fits into a single question",
+            "vault": "Everything you have, however much that is"
+          },
+          "finding": {
+            "label": "Finding the right note",
+            "lite": "Matches the words you typed",
+            "vault": "Works out what you meant, so it still finds the page when you word it differently"
+          },
+          "paying": {
+            "label": "Paying for answers",
+            "lite": "Needs a Google API key",
+            "vault": "An API key, a Claude Code subscription you may already pay for, or a local model for nothing"
+          },
+          "providers": {
+            "label": "Models",
+            "lite": "Gemini only",
+            "vault": "Claude, Gemini, Deepseek, Grok and 400+ more through OpenRouter"
+          },
+          "key": {
+            "label": "Your API key",
+            "lite": "Stored in your browser",
+            "vault": "Never touches a browser"
+          },
+          "voices": {
+            "label": "Voice",
+            "lite": "One archivist",
+            "vault": "Personas you write yourself"
+          },
+          "gaps": {
+            "label": "When it does not know",
+            "lite": "Tells you, and forgets",
+            "vault": "Records the gap so you can answer it, and remembers your answer"
+          },
+          "price": {
+            "label": "Price",
+            "lite": "Free",
+            "vault": "Free, and open source"
+          }
+        },
+        "tomes": "Tusk's Tomes — turn recordings into lore",
+        "loopHead": "Where the lore comes from in the first place.",
+        "loopBody": "Record your session and Tusk's Tomes turns the recording into a written chronicle and a session log. Those land in the same folder Tusk's Vault reads, so by the next session the archive can already answer questions about what just happened — without you writing a word of it up. Tomes writes the history, Vault remembers it, and the table asks it questions."
+      }
+    },
+    "notify": {
+      "gmOnlyPairing": "Only a GM can pair this world with Tusk's Vault.",
+      "gmOnlyAllowList": "Only a GM can change who may ask.",
+      "allowListSaved": "Saved. {count} chosen asker(s).",
+      "allowListFailed": "Could not save the chosen askers: {detail}",
+      "allowListUnavailable": "This Foundry version cannot show the picker. Set Who may ask to a rank instead.",
+      "searching": "Looking for Tusk's Vault on this machine…",
+      "notFound": "Could not find Tusk's Vault. It must be running on this same computer, and it answers on ports {range}. If you started it on a different port, put that address in the module setting \"Vault address\" and try again.",
+      "protocolMismatch": "Tusk's Vault {version} speaks a different bridge protocol than this module. Update Tusk's Vault, then pair again.",
+      "pairFailed": "Tusk's Vault refused the pairing request.",
+      "pairDeclined": "Pairing was not approved.",
+      "paired": "Paired with Tusk's Vault. Try asking something in chat.",
+      "askSomething": "Ask a question — for example, /{command} who runs the harbour?",
+      "noActiveGM": "No GM is connected, so there is nobody to reach the archive. Ask again once a GM is online.",
+      "needsPairing": "Tusk's Vault is not paired yet. Open the Settings sidebar → Game Settings → Module Settings → Tusk's Vault → Connect.",
+      "connectFailed": "Could not reach Tusk's Vault. {detail}",
+      "pairError": "Pairing did not finish: {detail} Tusk's Vault may now list this world as paired even though Foundry has no token — pair again.",
+      "triggerFailed": "Tusk's Vault could not handle that command: {detail}",
+      "pairExpired": "The pairing request expired before it was approved. Click Connect and try again.",
+      "pairedButUnusable": "Paired, but Tusk's Vault would not answer: {detail}",
+      "gmOnlyKey": "Only a GM can set the Gemini key.",
+      "keySaved": "Gemini key saved in this browser.",
+      "keyCleared": "Gemini key removed from this browser.",
+      "keyUnchanged": "Nothing typed — the key is unchanged. Use Remove the key to clear it.",
+      "keyFailed": "Could not save the key: {detail}",
+      "modelMoved": "{from} is no longer available. Lite has moved to {to} and saved it.",
+      "modelChosen": "Lite will use {model}.",
+      "modelListFailed": "Could not list models: {detail}",
+      "noAllowedModels": "None of the {count} models your key can reach are flash or flash-lite version 3 or above. Set the model by hand, or check your Google project.",
+      "liteKeyMissingHere": "Lite answers are on for this world, but this browser has no Gemini key — so questions are being searched, not answered. The key is stored per browser: set it here under Module Settings, or ask whichever GM has it to be the one online."
+    },
+    "chat": {
+      "hintRepair": "If you have started opening Foundry on a different address — a LAN IP instead of localhost, or https instead of http — the pairing was tied to the old one. Open the module settings and use “Connect to Tusk's Vault” to pair again.",
+      "hintUnreachable": "Tusk's Vault does not appear to be running on this computer. Start it, then ask again.",
+      "notPermitted": "The archivist does not take questions from you at this table. Your GM sets who may ask.",
+      "answeredToGM": "Your question went to the GM, who will answer at the table.",
+      "notConnected": "Tusk's Vault is not paired with this world yet. Open the Settings sidebar → Game Settings → Module Settings → Tusk's Vault → Connect.",
+      "thinking": "Consulting the archive…",
+      "noAnswer": "The archive returned nothing.",
+      "failed": "Could not reach the archive.",
+      "notConnectedAsker": "The archive is not connected yet — your GM needs to finish setting up Tusk's Vault.",
+      "unreachable": "Tusk's Vault is not answering at {address}. Check it is running on the GM's machine.",
+      "timedOut": "Tusk's Vault did not answer in time."
+    },
+    "lite": {
+      "searchHeader": "Found {count} passage(s) in your lore:",
+      "noMatches": "I am unsure about this detail. Nothing in your lore folder mentions it.",
+      "noFolder": "Lite mode found no lore to read. Make a journal folder called \"{folder}\" and put your notes in it, or point the Lore folder setting somewhere else. Tusk's Vault reads the documents you already keep on disk instead, and is free: {site}",
+      "noAnswer": "Gemini returned nothing ({reason}). Try rephrasing, or check the model name in module settings.",
+      "gmOnly": "Lite mode answers from the GM's browser, and this client is not a GM.",
+      "noKey": "No Gemini key is set in this browser.",
+      "footer": "That is lite mode quoting your notes. Tusk's Vault reads everything you keep, answers in prose and cites it, and is free.",
+      "footerNoKey": "Written answers are switched on for this table, but the GM answering has no Gemini key saved in their browser — a key is stored per browser, not in the world.",
+      "footerLink": "Get Tusk's Vault",
+      "footerRepo": "Source"
+    },
+    "sections": {
+      "mode": "Which archivist answers",
+      "bridge": "Tusk's Vault — the full experience",
+      "lite": "Lite — journals only, inside Foundry",
+      "table": "This table"
+    }
+  }
+}

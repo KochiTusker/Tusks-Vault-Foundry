@@ -1,0 +1,38 @@
+# Gitleaks configuration for the Tusk's Vault Foundry module.
+#
+# The dev → public split means every push to `public` runs through both:
+#   - Layer 1: custom regex patterns in scripts/audit-patterns.mjs
+#   - Layer 2: gitleaks (this config), invoked by scripts/audit-push-range.mjs
+#     and scripts/audit-history.mjs
+#
+# Default ruleset is extended. The allowlist below suppresses known-fake
+# fixtures in our own test suite — they're synthetic strings used to verify
+# the regex layer actually works, and would otherwise be flagged on every
+# push and history audit.
+#
+# Adding a new test file? If it contains intentional fake secrets, add it to
+# the `paths` list below. Anything outside this list is still scanned.
+#
+# scripts/lib/secret-scanner.mjs reads this same list, so a fixture is
+# registered once and both layers honour it. The NAME layers still run on an
+# allowlisted file: a real person's name in a fixture is a leak whatever the
+# fixture is for.
+
+[extend]
+# Build on gitleaks' default ruleset (the ~150 community-maintained
+# patterns). Set to false to disable defaults and use only custom rules.
+useDefault = true
+
+[allowlist]
+description = "Test fixtures with intentional synthetic secrets"
+paths = [
+  '''^scripts/audit-patterns\.test\.mjs$''',
+  '''^scripts/lib/scanners\.test\.mjs$''',
+  # The shared pattern module itself (regexes look like secrets to gitleaks).
+  '''^scripts/audit-patterns\.mjs$''',
+  # The module's own suites stub a bridge token. The values are literals like
+  # "test-token" and "paired-token" — synthetic by construction, and the
+  # bridge-token handling they cover is the reason they have to exist.
+  '''^test/module-runtime\.test\.mjs$''',
+  '''^test/vault-contract\.test\.mjs$''',
+]

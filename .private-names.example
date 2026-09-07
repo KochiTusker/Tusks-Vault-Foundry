@@ -1,0 +1,20 @@
+# Copy this file to `.private-names` (which is gitignored and must never be
+# committed). One protected string per line. Lines starting with # are
+# comments; blank lines are ignored. Matching is case-insensitive on word
+# boundaries.
+#
+# Put here every string that must never appear in a tracked file:
+#   - your real first and last name
+#   - the local-part of your personal email (the bit before the @)
+#   - your machine's username / home-folder name
+#   - your machine's hostname, if distinctive
+#   - real first names of players, friends, or anyone else in your orbit
+#
+# The scanners report a masked form ("Jo…", 6 chars) — never the string
+# itself — so a finding can be acted on without republishing the thing it
+# found.
+#
+# Example entries (replace with your own):
+#Jordan
+#jordan.surname
+#JORDANS-DESKTOP

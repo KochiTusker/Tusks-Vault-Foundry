@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Rapid pushes during active iteration used to trigger one CI run per
+# commit, flooding the inbox with failure emails for the same defect.
+# cancel-in-progress collapses bursts to one run per branch tip — the
+# latest push wins; older queued/running jobs are cancelled, and cancelled
+# runs don't generate failure emails.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    strategy:
+      # Don't short-circuit on the first failure — an OS-specific failure
+      # (Windows-only regression vs a real cross-platform bug) is exactly
+      # the information the matrix exists to produce.
+      fail-fast: false
+      matrix:
+        # Windows is where most Foundry GMs run, and the zip writer in
+        # tools/build-module.mjs is the part most likely to behave
+        # differently there: zip entry names must stay POSIX-shaped even
+        # when node:path would join them with backslashes.
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The audit scripts read `git ls-files` and HEAD only — a shallow
+          # checkout is sufficient, and the identity layer's --all walk sees
+          # exactly the fetched refs.
+          fetch-depth: 1
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+      # Runs verifyManifest(), so a manifest that cannot ship fails here
+      # rather than at the moment someone tries to cut a release.
+      - run: npm run build
+
+      # Linux-only below: the audit scripts run once per build — no benefit
+      # to repeating them on Windows.
+      #
+      # Gitleaks is intentionally NOT installed here. The in-tree scanners
+      # cover the same threat shapes (token regexes, filename heuristics,
+      # personal identifiers) and are unit-tested; audit-current-tree.mjs
+      # uses gitleaks as an extra layer when the binary is present and
+      # continues with a note when it is not. No third-party tarball to
+      # SHA-pin, no fail-closed placeholder blocking downstream steps.
+      - name: Audit current tree (dev mode)
+        if: matrix.os == 'ubuntu-latest'
+        run: node scripts/audit-current-tree.mjs --dev-mode
+      # Scoped to dependencies that actually SHIP (--omit=dev) at high
+      # severity. The module ships no runtime dependencies at all, so this
+      # is a tripwire for the day one is added rather than a live gate.
+      - name: npm audit (shipping deps, high+)
+        if: matrix.os == 'ubuntu-latest'
+        run: npm audit --omit=dev --audit-level=high

@@ -1,0 +1,9 @@
+node_modules/
+dist-module/
+
+# Built artifacts and anything holding local state.
+*.log
+
+# The denylist of strings that must never appear in tracked files. Gitignored
+# because a list of what you are protecting cannot itself be published.
+.private-names

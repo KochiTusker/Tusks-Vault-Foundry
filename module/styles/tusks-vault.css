@@ -1,0 +1,531 @@
+/* Answers should read as archive material, not as a system notice.
+   Everything here is scoped under the module's own classes so it cannot leak
+   into another module's chat cards — and, just as importantly, so a game
+   system that restyles the chat log heavily (dnd5e and pf2e both do) keeps
+   winning everywhere except inside this card.
+
+   ── The palette ────────────────────────────────────────────────────────────
+   Colour is used to carry MEANING, never decoration. Vault's core rules make
+   every factual claim end with a marker naming where it came from, so an
+   answer is not prose with references bolted on: it is a sequence of claims,
+   each with its provenance. Four different kinds of statement — what the
+   archive holds, what the GM has ruled, what is general rules knowledge, and
+   what the model has flagged as not fact at all — get four hues, so a player
+   skimming the log can tell them apart without reading.
+
+   Everything else stays deliberately quiet. A chat sidebar is dense and
+   narrow; a card that shouts competes with the table's own messages.
+
+   ── Theming ────────────────────────────────────────────────────────────────
+   Foundry v13 sets `.theme-light` / `.theme-dark` on an ancestor, and its
+   default follows the OS. Both are honoured below, and every surface is
+   TRANSLUCENT rather than a fixed colour — so the card sits on whatever
+   ground the theme or the system paints behind it, and a third-party UI
+   module that repaints the sidebar does not leave this card floating on a
+   slab of the wrong shade. */
+
+.tusks-vault-answer,
+.tusks-vault-thinking,
+/* The key dialog too, so its warning border can use the palette rather than
+   restating a colour the tests require to be declared exactly once. */
+.tusks-vault-keyform {
+  /* Both palettes, each value written once. Which one is ACTIVE is decided by
+     the remapping blocks below — so a hue is corrected in one place, and the
+     three selectors that can choose it cannot drift apart. */
+  --tv-l-source: #8f5a18;
+  --tv-l-clarification: #2f5f96;
+  --tv-l-rules: #256b58;
+  --tv-l-speculation: #6a4b98;
+  --tv-l-sanitised: #7d6060;
+  --tv-l-gap: #55639a;
+  --tv-l-declined: #6f6555;
+  --tv-l-error: #a33226;
+  --tv-l-wash: 12%;
+  --tv-l-line: 30%;
+
+  --tv-d-source: #d9a552;
+  --tv-d-clarification: #7ba9df;
+  --tv-d-rules: #5cbfa2;
+  --tv-d-speculation: #b294e0;
+  --tv-d-sanitised: #c0a0a0;
+  --tv-d-gap: #8f9ed6;
+  --tv-d-declined: #b8ab93;
+  --tv-d-error: #e3766a;
+  --tv-d-wash: 18%;
+  --tv-d-line: 42%;
+
+  /* Default to the light-ground palette. */
+  --tv-source: var(--tv-l-source);
+  --tv-clarification: var(--tv-l-clarification);
+  --tv-rules: var(--tv-l-rules);
+  --tv-speculation: var(--tv-l-speculation);
+  --tv-sanitised: var(--tv-l-sanitised);
+  --tv-gap: var(--tv-l-gap);
+  --tv-declined: var(--tv-l-declined);
+  --tv-error: var(--tv-l-error);
+  --tv-wash: var(--tv-l-wash);
+  --tv-line: var(--tv-l-line);
+  --tv-accent: var(--tv-source);
+}
+
+/* ── Choosing a palette ─────────────────────────────────────────────────────
+
+   MEASURED, not inferred, and this was found by installing the module rather
+   than by reading Foundry's documentation.
+
+   Foundry v13+ sets `theme-dark` on the root when its UI is dark, and keying
+   the palette off that is the obvious approach. It is wrong: the GAME SYSTEM
+   decides what a chat card is painted on, independently of Foundry's UI theme.
+   Measured on dnd5e 5.3.3 under a dark Foundry: the root has `theme-dark`,
+   while the chat message beneath it is rgb(232,232,239) with near-black text.
+   The dark palette lands on that at 1.8:1 to 2.1:1, against the 4.5:1 small
+   text needs.
+
+   So `markGround()` in scripts/tusk.js walks up from the card to the first
+   ancestor that actually paints a background and stamps the answer here. The
+   media query below is only a fallback for a Foundry where that never runs;
+   it is wrapped in :where() so it carries no specificity and the measured
+   class always wins, whatever order these rules end up in. */
+
+@media (prefers-color-scheme: dark) {
+  :where(:not(.theme-light)) .tusks-vault-answer,
+  :where(:not(.theme-light)) .tusks-vault-thinking {
+    --tv-source: var(--tv-d-source);
+    --tv-clarification: var(--tv-d-clarification);
+    --tv-rules: var(--tv-d-rules);
+    --tv-speculation: var(--tv-d-speculation);
+    --tv-sanitised: var(--tv-d-sanitised);
+    --tv-gap: var(--tv-d-gap);
+    --tv-declined: var(--tv-d-declined);
+    --tv-error: var(--tv-d-error);
+    --tv-wash: var(--tv-d-wash);
+    --tv-line: var(--tv-d-line);
+  }
+}
+
+.tusks-vault-answer.tv-on-light,
+.tusks-vault-thinking.tv-on-light {
+  --tv-source: var(--tv-l-source);
+  --tv-clarification: var(--tv-l-clarification);
+  --tv-rules: var(--tv-l-rules);
+  --tv-speculation: var(--tv-l-speculation);
+  --tv-sanitised: var(--tv-l-sanitised);
+  --tv-gap: var(--tv-l-gap);
+  --tv-declined: var(--tv-l-declined);
+  --tv-error: var(--tv-l-error);
+  --tv-wash: var(--tv-l-wash);
+  --tv-line: var(--tv-l-line);
+}
+
+.tusks-vault-answer.tv-on-dark,
+.tusks-vault-thinking.tv-on-dark {
+  --tv-source: var(--tv-d-source);
+  --tv-clarification: var(--tv-d-clarification);
+  --tv-rules: var(--tv-d-rules);
+  --tv-speculation: var(--tv-d-speculation);
+  --tv-sanitised: var(--tv-d-sanitised);
+  --tv-gap: var(--tv-d-gap);
+  --tv-declined: var(--tv-d-declined);
+  --tv-error: var(--tv-d-error);
+  --tv-wash: var(--tv-d-wash);
+  --tv-line: var(--tv-d-line);
+}
+
+/* ── The card ─────────────────────────────────────────────────────────────── */
+
+.tusks-vault-thinking {
+  display: inline-block;
+  opacity: 0.7;
+  border-left: 3px solid color-mix(in srgb, var(--tv-accent) var(--tv-line), transparent);
+  padding-left: 0.6em;
+}
+
+.tusks-vault-answer {
+  border-left: 3px solid var(--tv-accent);
+  padding-left: 0.6em;
+  /* Inherit the log's own type. A card that changes the font is a card that
+     looks like it came from somewhere else. */
+  line-height: 1.45;
+  /* A long filename in a chip must not widen the sidebar. */
+  overflow-wrap: anywhere;
+}
+
+.tusks-vault-answer > :first-child {
+  margin-top: 0;
+}
+
+.tusks-vault-answer > :last-child {
+  margin-bottom: 0;
+}
+
+.tusks-vault-answer p {
+  margin: 0 0 0.5em;
+}
+
+/* A heading in a ~300px column is a label, not a banner: weight and colour
+   carry it, size does not. Every markdown level renders the same, because the
+   useful fact is that the line IS a heading. */
+.tusks-vault-answer .tusks-vault-heading {
+  margin: 0.75em 0 0.3em;
+  font-weight: 700;
+  font-size: 1em;
+  letter-spacing: 0.02em;
+  color: var(--tv-accent);
+}
+
+.tusks-vault-answer ul,
+.tusks-vault-answer ol {
+  /* Foundry's own reset leaves list padding to the UA, which indents far
+     enough to lose a third of the column. */
+  margin: 0.3em 0 0.55em;
+  padding-left: 1.25em;
+}
+
+.tusks-vault-answer li {
+  margin: 0.15em 0;
+}
+
+.tusks-vault-answer li::marker {
+  color: color-mix(in srgb, var(--tv-accent) 70%, transparent);
+}
+
+.tusks-vault-answer blockquote {
+  margin: 0.4em 0;
+  padding: 0.25em 0.6em;
+  border-left: 2px solid color-mix(in srgb, var(--tv-accent) var(--tv-line), transparent);
+  background: color-mix(in srgb, var(--tv-accent) calc(var(--tv-wash) / 2), transparent);
+  font-style: italic;
+}
+
+.tusks-vault-answer .tusks-vault-rule {
+  margin: 0.6em 0;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--tv-accent) var(--tv-line), transparent);
+}
+
+.tusks-vault-answer pre {
+  white-space: pre-wrap;
+  /* Long code or a pasted table must not widen the chat sidebar. */
+  overflow-x: auto;
+  margin: 0.4em 0;
+  padding: 0.4em;
+  border-radius: 3px;
+  background: rgba(127, 127, 127, 0.14);
+}
+
+.tusks-vault-answer code {
+  font-size: 0.9em;
+}
+
+.tusks-vault-answer :not(pre) > code {
+  padding: 0.05em 0.3em;
+  border-radius: 3px;
+  background: rgba(127, 127, 127, 0.16);
+}
+
+/* ── Citations ────────────────────────────────────────────────────────────── */
+
+/* The one element on the card that is meant to catch the eye. Sized to sit on
+   a text line without changing its height, and never bold — a claim's source
+   should be findable, not louder than the claim. */
+.tusks-vault-answer .tusks-vault-cite {
+  display: inline;
+  padding: 0.05em 0.42em;
+  border-radius: 999px;
+  font-size: 0.82em;
+  font-style: normal;
+  /* Long filenames are the common case, and a chip that cannot wrap forces a
+     horizontal scrollbar on the whole sidebar.
+     `white-space: nowrap` used to sit here alongside overflow-wrap and simply
+     beat it: nowrap suppresses the wrapping opportunities overflow-wrap would
+     otherwise take, so an ordinary vault path of around sixty characters —
+     a numbered top folder, a family or region folder, then the note — measured
+     389px inside a 322px sidebar and scrolled the whole chat log sideways —
+     the exact failure the comment above was written to prevent. Wrapping
+     splits the pill across lines, which is a smaller ugliness than a
+     horizontally scrolling sidebar, and only happens on paths that would not
+     have fitted anyway. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: var(--tv-chip);
+  background: color-mix(in srgb, var(--tv-chip) var(--tv-wash), transparent);
+  border: 1px solid color-mix(in srgb, var(--tv-chip) var(--tv-line), transparent);
+}
+
+/* What the archive holds. */
+.tusks-vault-answer .tusks-vault-cite.is-source {
+  --tv-chip: var(--tv-source);
+}
+
+/* What the GM has ruled — outranks the archive, per Vault's own core rules. */
+.tusks-vault-answer .tusks-vault-cite.is-clarification {
+  --tv-chip: var(--tv-clarification);
+}
+
+/* General rules knowledge, explicitly NOT this campaign's lore. */
+.tusks-vault-answer .tusks-vault-cite.is-rules {
+  --tv-chip: var(--tv-rules);
+}
+
+/* Flagged by the model as not fact. Dashed, because the border itself should
+   say "provisional" to someone who cannot distinguish the hues. */
+.tusks-vault-answer .tusks-vault-cite.is-speculation {
+  --tv-chip: var(--tv-speculation);
+  border-style: dashed;
+}
+
+.tusks-vault-answer .tusks-vault-cite.is-sanitised {
+  --tv-chip: var(--tv-sanitised);
+  border-style: dashed;
+}
+
+/* ── Card states ──────────────────────────────────────────────────────────── */
+
+/* A recorded lore gap is the archive saying "I do not know this yet" — worth
+   marking, because it is an invitation for the GM to write the answer down. */
+.tusks-vault-answer.is-gap {
+  --tv-accent: var(--tv-gap);
+}
+
+/* A decline is the model refusing the question. It is deliberately NOT styled
+   as an error: the model's own explanation is the most useful thing to show. */
+.tusks-vault-answer.is-declined {
+  --tv-accent: var(--tv-declined);
+}
+
+.tusks-vault-answer.is-error {
+  --tv-accent: var(--tv-error);
+}
+
+.tusks-vault-answer .notes {
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+/* A failure code is quoted verbatim into an issue tracker. Monospace so a GM
+   transcribing it by eye cannot confuse an l for a 1. */
+.tusks-vault-answer.is-error .notes:last-child {
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.03em;
+}
+
+/* ── The pairing code ─────────────────────────────────────────────────────── */
+
+.tusks-vault-code {
+  font-family: var(--font-mono, monospace);
+  font-size: 2.2em;
+  letter-spacing: 0.25em;
+  text-align: center;
+  margin: 0.4em 0;
+}
+
+/* ── The chosen-askers picker ─────────────────────────────────────────────── */
+
+/* A world can have a lot of users, so the list scrolls inside the dialog
+   rather than growing it past the window. */
+.tusks-vault-allow-list {
+  max-height: 18em;
+  overflow-y: auto;
+  margin: 0.5em 0;
+  border: 1px solid rgba(127, 127, 127, 0.35);
+  border-radius: 3px;
+  padding: 0.25em 0.5em;
+}
+
+.tusks-vault-allow-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.15em 0;
+}
+
+.tusks-vault-allow-name {
+  flex: 1;
+}
+
+/* The rank is context, not the label — it says why someone may already be
+   covered by the tier without being ticked here. */
+.tusks-vault-allow-role {
+  font-size: 0.85em;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+/* ── The lite-mode key dialog ─────────────────────────────────────────────── */
+
+.tusks-vault-keyform input[type="password"] {
+  width: 100%;
+  font-family: var(--font-mono, monospace);
+}
+
+/* The disclosure is the point of this dialog, not decoration around the field.
+   It sits above the input because the decision it informs is made before the
+   paste, not after — and it is bordered rather than tinted so it reads the
+   same on whatever ground the dialog gives it. */
+.tusks-vault-risk {
+  margin: 0.6em 0;
+  padding: 0.5em 0.75em;
+  border: 1px solid color-mix(in srgb, var(--tv-l-error) 45%, transparent);
+  border-left-width: 3px;
+  border-radius: 3px;
+}
+
+.tusks-vault-risk .tusks-vault-risk-head {
+  margin: 0 0 0.35em;
+  font-weight: 700;
+}
+
+.tusks-vault-risk ul {
+  margin: 0 0 0.4em;
+  padding-left: 1.2em;
+}
+
+.tusks-vault-risk li {
+  margin: 0.2em 0;
+}
+
+.tusks-vault-risk .notes {
+  margin: 0;
+  font-size: 0.9em;
+  opacity: 0.85;
+}
+
+/* ── Section headings in the settings panel ───────────────────────────────── */
+
+/* Foundry renders one flat list per package and offers no grouping, so these
+   are inserted by the module. Deliberately colourless: this sits in a dialog
+   whose ground the module does not measure, and weight plus a rule reads
+   correctly on any of them, where a fixed hue would not. */
+.tusks-vault-section {
+  margin: 1.1em 0 0.4em;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  font-size: 1em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  /* Foundry's own h3 carries margins and a border that would fight this. */
+  border-top: 0;
+  text-transform: none;
+}
+
+/* The first heading opens the module's block; it needs no gap above it. */
+.tusks-vault-section:first-child {
+  margin-top: 0;
+}
+
+/* The half of the panel that is not running. A class rather than Foundry's
+   `config` flag: that flag decides whether a row is RENDERED, so the inactive
+   half did not exist in the form and switching the dropdown appeared to do
+   nothing until the GM saved and reopened. Rendered-and-hidden can be revealed
+   the instant the select moves. */
+.tusks-vault-hidden {
+  display: none !important;
+}
+
+/* The line pointing at the full application. Quiet on purpose: it appears on
+   every lite answer, and something that nags on every answer gets tuned out
+   long before it persuades anybody. */
+.tusks-vault-answer .tusks-vault-upsell {
+  margin: 0.6em 0 0;
+  padding-top: 0.4em;
+  border-top: 1px solid color-mix(in srgb, var(--tv-accent) var(--tv-line), transparent);
+  font-size: 0.85em;
+  /* Quiet, but not to the point of being unreadable. The answer is what the
+     table came for; this is the note underneath it. */
+  opacity: 0.85;
+}
+
+/* The two links here are the module's most-seen route to the full application —
+   they sit under every lite answer. They were inheriting the user agent's
+   #0000EE, which on a dark chat log is close to invisible and, under the 0.85
+   opacity above, worse again.
+
+   Unlike the comparison dialog, this one IS inside an answer card, so
+   `markGround()` has already stamped the correct palette on it and the brand
+   amber is known to have contrast against the measured ground. */
+.tusks-vault-answer .tusks-vault-upsell a {
+  color: var(--tv-accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.tusks-vault-answer .tusks-vault-upsell a:hover,
+.tusks-vault-answer .tusks-vault-upsell a:focus-visible {
+  text-decoration-thickness: 2px;
+}
+
+/* ── The comparison screen ────────────────────────────────────────────────── */
+
+.tusks-vault-why-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.6em 0;
+}
+
+.tusks-vault-why-table th,
+.tusks-vault-why-table td {
+  padding: 0.3em 0.5em;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.tusks-vault-why-table thead th {
+  font-weight: 700;
+  border-bottom-width: 2px;
+}
+
+/* The row label carries the question; the two cells carry the answers, so the
+   label should not compete with them for weight. */
+.tusks-vault-why-table tbody th {
+  font-weight: 400;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.tusks-vault-why-cta {
+  display: flex;
+  /* Wrap rather than squeeze. Three links in a dialog a user may have resized
+     narrow otherwise compress into columns of one word each. */
+  flex-wrap: wrap;
+  gap: 0.4em 1.2em;
+  margin: 0.8em 0 0.4em;
+  font-weight: 700;
+}
+
+/* The one link that matters in the whole module — "go and get the full thing" —
+   was the only element here with no colour of its own, so it fell back to the
+   user agent's #0000EE. That is unreadable on a dark Foundry and looks like an
+   unstyled default everywhere else.
+
+   Coloured with `currentColor` rather than a brand hue for the same reason the
+   rest of this file does it: `markGround()` only stamps chat cards, so a dialog
+   genuinely cannot know whether it is sitting on light or dark, and a fixed
+   accent would be wrong half the time. Inheriting the host's text colour is
+   contrast-correct by construction; the underline and the weight are what say
+   "link". */
+.tusks-vault-why-cta a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: from-font;
+}
+
+.tusks-vault-why-cta a:hover,
+.tusks-vault-why-cta a:focus-visible {
+  /* Lift rather than recolour: still ground-agnostic. */
+  text-decoration-thickness: 2px;
+  opacity: 0.85;
+}
+
+/* The loop: record a session, Tomes writes it up, Vault answers from it next
+   week. Set apart from the table because it is not a comparison — it is the
+   reason the comparison matters, and a table row saying "another product"
+   read as a distraction. */
+.tusks-vault-why-loop {
+  margin: 0.8em 0 0.2em;
+  padding: 0.5em 0.7em;
+  border-left: 3px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-radius: 0;
+}

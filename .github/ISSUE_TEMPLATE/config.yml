@@ -1,0 +1,24 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/KochiTusker/Tusks-Vault-Foundry/security/advisories/new
+    about: >
+      Privately, so it can be fixed before it is public. Please do not open an
+      ordinary issue for one.
+
+  - name: Tusk's Vault itself — setup, models, costs, privacy
+    url: https://kochitusker.github.io/Tusks-Vault/
+    about: >
+      This repository is only the Foundry module. Anything about the
+      application it bridges to belongs with the application.
+
+  - name: Tusk's Vault — source and issues
+    url: https://github.com/KochiTusker/Tusks-Vault
+    about: >
+      Vault will not start, answers are wrong, a provider is misbehaving — all
+      of that is Vault's, not this module's.
+
+  - name: Tusk's Tomes — turning session recordings into lore
+    url: https://kochitusker.github.io/Tusks-Tomes/
+    about: >
+      The sibling project that writes the chronicles Vault answers from.

@@ -1,0 +1,47 @@
+# Line endings and binary safety.
+#
+# Ported from Tusk's Vault after a real failure there: twelve bundled web fonts
+# were committed without a `binary` rule, eol conversion rewrote their bytes,
+# and every one of them was ~80% larger than the length in its own header. The
+# browser rejected all twelve, the site silently fell back to a system font,
+# and none of it was visible on a machine that happened to have the fonts
+# installed locally. The bug survived because its symptom appears nowhere near
+# its cause.
+#
+# This repository ships no binaries today. The rule is here anyway, because a
+# Foundry module acquires a cover image or an icon the moment it gets a listing
+# page, and the failure above is cheaper to prevent than to notice.
+
+# `binary` is shorthand for `-text -diff`: no eol conversion on any machine,
+# whatever the contributor's core.autocrlf happens to be.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.svg   text
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary
+*.zip   binary
+*.pdf   binary
+*.webm  binary
+*.mp4   binary
+*.ogg   binary
+
+# The module's own sources. Foundry reads these from a zip on every platform,
+# and LF everywhere keeps the built artefact byte-identical no matter which
+# machine cut the release.
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.css   text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+# The POSIX side: a CR reaching a shebang produces
+# "bad interpreter: /usr/bin/env bash^M".
+*.sh    text eol=lf

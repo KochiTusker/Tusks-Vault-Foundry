@@ -1,0 +1,90 @@
+name: Bug report
+description: Something in the module does not work
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The single most useful thing you can include is
+        the diagnostics dump — it answers both questions a report has to answer
+        (what is configured, and what actually happened) in one paste.
+
+        **It is written to be pasted in public.** Where a value would identify
+        you or your table, it records the shape instead: a question's length
+        rather than its text, a key's length rather than the key, how many
+        people may ask rather than who, and whether the Vault address is
+        loopback rather than the address itself. It contains no question text,
+        no answer text, no token, no world name, no player names and no user
+        ids, and file paths are stripped out of recorded errors.
+
+        Two things it does quote, because a bug report is unreadable without
+        them: the names you chose for the trigger command, the bot and the lore
+        folder; and error text from Vault or from your model provider. Both are
+        worth a glance before you paste if your campaign's name is in one.
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: >
+        Press F12 in the GM's browser, run `TusksVault.diagnostics()`, and paste
+        the whole block. If the module did not load at all, say so instead.
+      render: text
+      placeholder: |
+        ── Tusk's Vault module diagnostics ──
+        generated : ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: input
+    id: error-code
+    attributes:
+      label: Error code, if one was shown
+      description: >
+        Failures print a stable code such as `TV-BRIDGE-401` or
+        `TV-LITE-404`, in the chat message and in the diagnostics. Each maps to
+        one specific cause.
+      placeholder: TV-BRIDGE-UNREACHABLE
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Which half were you running
+      options:
+        - Tusk's Vault (the bridge)
+        - Lite — searching only
+        - Lite — written answers
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: Foundry and game system
+      description: Both version numbers. The diagnostics dump has them if you pasted it.
+      placeholder: "Foundry 14.365, dnd5e 5.3.3"
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: >
+            I am not reporting a security vulnerability. Those go to a
+            [private advisory](https://github.com/KochiTusker/Tusks-Vault-Foundry/security/advisories/new)
+            instead, so they can be fixed before they are public.
+          required: true
+        - label: >
+            If every GM at my table did not have the same module version, I
+            reloaded them first. The client that answers is whichever GM
+            Foundry elects, not necessarily the one I am looking at.
+          required: false

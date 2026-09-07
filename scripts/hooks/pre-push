@@ -1,0 +1,97 @@
+#!/bin/sh
+# pre-push hook — two stages. Canonical source: scripts/hooks/pre-push;
+# installed into .git/hooks by `node scripts/install-hooks.mjs` (hooks live
+# outside the tree, so the tracked copy here is the one that gets reviewed
+# and the installer mirrors it on demand).
+#
+#   Stage 1 (ALL remotes): run `npm run verify` — defined in package.json as
+#     exactly the set of gates CI runs (vitest, dev-mode tree audit). Aborts
+#     on any failure so a broken push never
+#     reaches CI. One definition, two callers: this hook and CI drifting
+#     apart is not hypothetical — a hook that runs a subset of CI goes green
+#     locally and red remotely on failures nothing local could have caught.
+#     scripts/verify-parity.test.mjs pins the two together.
+#
+#   Stage 2 (ALL remotes): the full multi-layer scan over the commits being
+#     pushed, via scripts/audit-push-range.mjs, which reads git's standard
+#     pre-push stdin format.
+#
+#     This used to run for the public destination only and skipped the dev
+#     repository outright — but dev is second-line defence, not a free pass,
+#     and a protected name that reaches it unscanned is already written down.
+#
+#     The destination decides SEVERITY, not whether the scan runs. `--public`
+#     makes `.private-names` mandatory and enables the fast-forward guard;
+#     elsewhere an absent denylist warns, so a contributor without the
+#     maintainer's list can still push.
+#
+# The public destination is matched on remote NAME *or* URL:
+#   - name "public" (the maintainer's configured remote)
+#   - URL containing "tusks-vault-vtt" but NOT "tusks-vault-vtt-dev" (catches
+#     a renamed remote and one-shot `git push <url>` pushes)
+#
+# The -dev exclusion must be the FIRST case arm. `tusks-vault-vtt-dev` also
+# contains `tusks-vault-vtt`, so an arm order that tested the public shape
+# first would mark every ordinary dev push as public-bound — demanding the
+# denylist and running the fast-forward guard on a branch that rebases.
+#
+# Bypass: `git push --no-verify` skips this hook entirely. Stage 1 bypass is
+# fine for a known-broken WIP branch a collaborator asked to see. Stage 2
+# bypass is NOT fine unless every finding has been verified false-positive.
+# Skip stage 1 only via SKIP_TESTS=1 (CI does this — it runs the same steps
+# itself).
+
+remote_name="$1"
+remote_url="$2"
+
+# Resolve the worktree-aware repo root so scripts/ is found regardless of
+# whether this runs in the main checkout or a linked worktree.
+repo_root=$(git rev-parse --show-toplevel) || exit 0
+
+# Stage 2 reads stdin (git's pre-push ref list) — preserve it through
+# stage 1 by parking it in a tempfile and replaying it later.
+stdin_file=$(mktemp)
+trap 'rm -f "$stdin_file"' EXIT
+cat > "$stdin_file" || exit 0
+
+# ── Stage 1: verify (every remote) ──────────────────────────────────────────
+if [ "${SKIP_TESTS:-0}" != "1" ]; then
+  echo "pre-push: running npm run verify before pushing…"
+  if ! (cd "$repo_root" && npm run --silent verify); then
+    echo "" >&2
+    echo "pre-push: npm run verify FAILED. Push aborted." >&2
+    echo "  Run \`npm run verify\` to see the failures, fix them, then push again." >&2
+    echo "  Pushing a known-broken WIP branch on purpose: git push --no-verify" >&2
+    exit 1
+  fi
+fi
+
+# ── Stage 2: public-destination scan ────────────────────────────────────────
+url_lower=$(printf '%s' "$remote_url" | tr '[:upper:]' '[:lower:]')
+name_lower=$(printf '%s' "$remote_name" | tr '[:upper:]' '[:lower:]')
+
+is_public=0
+if [ "$name_lower" = "public" ]; then
+  is_public=1
+fi
+case "$url_lower" in
+  *tusks-vault-vtt-dev*) ;;  # dev repo — still scanned, just not as public
+  *tusks-vault-vtt*) is_public=1 ;;
+esac
+
+audit_script="$repo_root/scripts/audit-push-range.mjs"
+if [ ! -f "$audit_script" ]; then
+  # Fail CLOSED: this hook is a tripwire, and a half-installed setup must
+  # refuse the push rather than silently let it through unscanned.
+  echo "" >&2
+  echo "⚠  pre-push hook installed but $audit_script is missing." >&2
+  echo "   Refusing the push. Restore the script or bypass with --no-verify." >&2
+  echo "" >&2
+  exit 1
+fi
+
+if [ "$is_public" -eq 1 ]; then
+  node "$audit_script" --public < "$stdin_file"
+else
+  node "$audit_script" < "$stdin_file"
+fi
