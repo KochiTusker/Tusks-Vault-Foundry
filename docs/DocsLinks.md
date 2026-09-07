@@ -21,13 +21,37 @@ change.** Every URL below is referenced from a file that ships to strangers.
 |---|---|---|
 | `https://kochitusker.github.io/Tusks-Vault/` | `module.json` → `url` and `description`; `README.md` throughout | The documentation site's landing page. Foundry shows `url` in the package browser as the package's website, so this is where an installer arrives from inside Foundry. It has to explain, above the fold, that Tusk's Vault is a separate app they need to install. |
 | `https://kochitusker.github.io/Tusks-Vault/docs/surfaces/foundry-vtt/` | `module.json` → `readme` | The Foundry tutorial: installing Vault, switching the Foundry surface on, pairing, asking, and the access settings. Foundry links this as the package's readme. |
-| `https://github.com/KochiTusker/Tusks-Vault` | `README.md` | The Vault source repository. |
+| `https://github.com/KochiTusker/Tusks-Vault` | `README.md`, `Troubleshooting.md` | The Vault source repository. |
 | `https://github.com/KochiTusker/Tusks-Vault-Foundry` | `module.json` → `license`, `bugs`, `changelog`, `manifest`, `download` | This repository, public. See [RELEASING.md](../RELEASING.md). |
+
+### Deep links, from the Markdown pages only
+
+None of these are compiled into `module.json`, so a broken one is a bad link on a
+page rather than a dead end inside Foundry. They still ship to strangers.
+
+| URL | Referenced from | What has to be there |
+|---|---|---|
+| `…/docs/getting-started/installation/` | `README.md` | Installing Vault. |
+| `…/docs/getting-started/choosing-a-provider/` | `README.md` | Picking a model provider. |
+| `…/docs/about/what-it-costs/` | `README.md` | What running Vault costs. |
+| `…/docs/lore/obsidian-vault/` | `README.md` | Pointing Vault at notes you already keep. |
+| `…/docs/troubleshooting/faq/` | `Troubleshooting.md` | Vault's own FAQ. |
+| `…/docs/troubleshooting/known-issues/` | `Troubleshooting.md` | Vault's known issues. |
 
 The site mirrors the layout of
 [Tusk's Tomes](https://kochitusker.github.io/Tusks-Tomes/), the sister project,
-which uses `/<repo>/docs/<section>/<page>/`. `docs/surfaces/foundry-vtt/` follows
-that scheme.
+which uses `/<repo>/docs/<section>/<page>/`. Every URL above follows that scheme
+and already exists on the site's `gh-pages` branch.
+
+## This repository has no documentation site
+
+The pages in `docs/` are ordinary Markdown, read on GitHub. There is no Pages
+site here and there should not be: a second site would split the documentation
+across two places and give a GM two front doors to guess between.
+
+Everything about Vault itself — models, costs, providers, tutorials — belongs on
+the Vault site. Everything about the Foundry *bridge* — settings, Lite mode,
+diagnostics — belongs in `docs/` here, next to the code it describes.
 
 ## Both links must resolve before the registry submission
 
