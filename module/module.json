@@ -1,8 +1,8 @@
 {
   "id": "tusks-vault",
   "title": "Tusk's Vault",
-  "description": "<p><strong>This is a bridge, not the archivist.</strong> It does nothing on its own. It needs <a href=\"https://kochitusker.github.io/Tusks-Vault/\">Tusk's Vault</a> &mdash; a separate, free, self-hosted app &mdash; installed and running on the GM's own computer. Install that first.</p><p>With Vault running, ask your campaign's own lore from the Foundry chat bar. Type <code>/tusk who is the harbour master?</code> and the answer comes back cited to the session logs, NPC pages and setting documents you already keep, rather than to a model's guess about a generic fantasy world.</p><p>Your notes never leave the GM's machine except as part of a question to whichever model provider you configured. Players install nothing.</p><p>Setup, tutorials and troubleshooting: <a href=\"https://kochitusker.github.io/Tusks-Vault/\">kochitusker.github.io/Tusks-Vault</a> &middot; <a href=\"https://github.com/KochiTusker/Tusks-Vault\">source on GitHub</a></p>",
-  "version": "1.0.2",
+  "description": "<p><strong>Ask your campaign's own lore from the chat bar.</strong> Type <code>/tusk who is the harbour master?</code> and the answer comes back cited to the note it came from, rather than to a model's guess about a generic fantasy world. Players install nothing.</p><p><strong>Lite</strong> works the moment you enable this module, with nothing else installed. It answers from the journal entries in one folder, cites the entry it used, and honours your journal permissions &mdash; a GM-only note stays GM-only even when a player asks about it.</p><p><strong>Bridge</strong> is the other mode, and the one that needs a separate program. It connects this module to <a href=\"https://kochitusker.github.io/Tusks-Vault/\">Tusk's Vault</a> &mdash; a free, self-hosted app the GM runs on their own computer, which Foundry cannot install for you. Answers then come from everything you keep, Word and PDF and Markdown and a whole Obsidian vault, instead of one journal folder &mdash; with your choice of model, and an API key that never sits in a browser.</p><p>Start with Lite; move up when you want more. Setup, tutorials and troubleshooting: <a href=\"https://kochitusker.github.io/Tusks-Vault/\">kochitusker.github.io/Tusks-Vault</a> &middot; <a href=\"https://github.com/KochiTusker/Tusks-Vault\">source on GitHub</a></p>",
+  "version": "1.0.3",
   "authors": [
     {
       "name": "KochiTusker",
@@ -32,5 +32,5 @@
   "bugs": "https://github.com/KochiTusker/Tusks-Vault-Foundry/issues",
   "changelog": "https://github.com/KochiTusker/Tusks-Vault-Foundry/releases",
   "manifest": "https://github.com/KochiTusker/Tusks-Vault-Foundry/releases/latest/download/module.json",
-  "download": "https://github.com/KochiTusker/Tusks-Vault-Foundry/releases/download/foundry-v1.0.2/module.zip"
+  "download": "https://github.com/KochiTusker/Tusks-Vault-Foundry/releases/download/foundry-v1.0.3/module.zip"
 }

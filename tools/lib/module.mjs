@@ -137,19 +137,28 @@ export function verifyManifest(manifest) {
 }
 
 /**
- * The dependency has to be in the description, because it cannot be anywhere
- * Foundry understands.
+ * Both halves of what this module is have to be in the description, because
+ * neither can be anywhere Foundry understands.
  *
  * `relationships.requires` only expresses dependencies on other FOUNDRY
  * packages — its `type` is `module`, `system` or `world`, and an unresolvable
  * id sends Foundry looking in the package registry for something that will
  * never be listed there. Tusk's Vault is a desktop application, so the only
- * place a prospective installer can learn they need it is the text Foundry
- * renders in the package browser: this description.
+ * place a prospective installer learns anything is the text Foundry renders in
+ * the package browser: this description.
  *
- * Someone installing a bridge in the belief they are installing the whole thing
- * gets a module that does nothing and no idea why, so this is checked rather
- * than remembered.
+ * It has to carry two facts, and the check exists because the description once
+ * carried only the first:
+ *
+ *   - Bridge needs a separate program. Someone installing in the belief they
+ *     are getting the whole archivist otherwise gets a mode that cannot work
+ *     and no idea why.
+ *   - Lite does not. The description used to open "This is a bridge, not the
+ *     archivist. It does nothing on its own", which was written before Lite
+ *     existed and never revisited. It sent anyone who wanted the two-minute
+ *     journals-only trial away to download a self-hosted app first — the same
+ *     failure as the first case, pointing the other way, and worse because it
+ *     turned people away at the only screen where they decide.
  */
 function verifyDependencyIsStated(manifest) {
   const problems = [];
@@ -157,6 +166,13 @@ function verifyDependencyIsStated(manifest) {
 
   if (!/bridge/i.test(description)) {
     problems.push("description must say this is a bridge — the package browser is the only place an installer is told");
+  }
+  if (!/\blite\b/i.test(description)) {
+    problems.push(
+      "description must name Lite — the mode that needs nothing else installed. Without it the " +
+        "text reads as though the module is useless on its own, which turns away the readers " +
+        "most likely to try it"
+    );
   }
   if (!description.includes(DOCS_SITE)) {
     problems.push(`description must link ${DOCS_SITE}, which is where everything else lives`);

@@ -541,14 +541,26 @@ describe("localisation", () => {
   });
 });
 
-describe("the dependency is stated where an installer will see it", () => {
+describe("both modes are stated where an installer will see them", () => {
   // Foundry has no way to express a dependency on something that is not a
   // Foundry package: `relationships.requires` resolves ids against the package
   // registry. So the package browser's description is the ONLY place a person
-  // deciding whether to click Install can learn they are installing a bridge to
-  // an app they do not have yet.
-  it("says the module is a bridge", () => {
+  // deciding whether to click Install learns anything at all — and it has to
+  // carry two facts, not one.
+  //
+  // It used to carry only the first. The description opened "This is a bridge,
+  // not the archivist. It does nothing on its own", which was written before
+  // Lite existed and never revisited, so the one screen where someone decides
+  // told a prospective Lite user to go and install a self-hosted app first.
+  it("says the module is a bridge — the mode that needs a separate program", () => {
     expect(manifest.description).toMatch(/bridge/i);
+  });
+
+  it("names Lite — the mode that needs nothing else installed", () => {
+    // The half that was missing. Without it the text reads as "useless without
+    // a download", which is untrue and turns away the readers most likely to
+    // try it.
+    expect(manifest.description).toMatch(/\blite\b/i);
   });
 
   it("names Tusk's Vault as the thing it bridges to", () => {
@@ -560,13 +572,23 @@ describe("the dependency is stated where an installer will see it", () => {
     expect(manifest.url).toBe(DOCS_SITE);
   });
 
-  it("rejects a description that drops the warning", () => {
-    const problems = verifyManifest({ ...manifest, description: "Ask your lore in chat." });
+  it("rejects a description that drops the bridge warning", () => {
+    const problems = verifyManifest({ ...manifest, description: "Ask your lore in chat. Lite works alone." });
     expect(problems.join(" ")).toContain("must say this is a bridge");
   });
 
+  it("rejects a description that drops Lite", () => {
+    // The regression that shipped: accurate about Bridge, silent about the mode
+    // that needs nothing, and therefore misleading in the expensive direction.
+    const problems = verifyManifest({
+      ...manifest,
+      description: `A bridge to Tusk's Vault. ${DOCS_SITE}`,
+    });
+    expect(problems.join(" ")).toContain("must name Lite");
+  });
+
   it("rejects a description that stops linking the docs", () => {
-    const problems = verifyManifest({ ...manifest, description: "A bridge to something." });
+    const problems = verifyManifest({ ...manifest, description: "A bridge to something, plus Lite." });
     expect(problems.join(" ")).toContain("must link");
   });
 
