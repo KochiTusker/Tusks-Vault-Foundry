@@ -1,6 +1,6 @@
 {
   "name": "tusks-vault-vtt",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "description": "Foundry VTT module for Tusk's Vault — ask your campaign's own lore from the chat bar.",

@@ -282,7 +282,7 @@ const SETTING_DEFAULTS = {
  * meaning silently. The two tiers are now separate choices, and the setting
  * labels say which is which.
  */
-const ROLES = globalThis.CONST?.USER_ROLES ?? {
+const ROLES = {
   NONE: 0,
   PLAYER: 1,
   TRUSTED: 2,
@@ -413,6 +413,35 @@ function setSetting(key, value) {
  */
 function registerSettings() {
   /**
+   * EVERY setting keeps an open panel in step — on every client, not just this one.
+   *
+   * `setSetting` already does this for the client that made the change, which
+   * was the 1.1.0 model-picker fix and is only half of it: `liteModel` is
+   * world-scoped, so a SECOND GM can have the settings panel open on another
+   * machine. When `recoverModel` moves the table off a model Google has
+   * retired, that GM's panel still holds the old name — and Foundry's submit
+   * handler writes back every field it is holding, so pressing **Save Module
+   * Settings** undoes the repair mid-session, on the table that was already
+   * broken. That is precisely the failure the fix was written for, one client
+   * over.
+   *
+   * Foundry fires `onChange` on every client that receives a world-setting
+   * update, which is the half `setSetting` structurally cannot reach. Wrapping
+   * the registration rather than editing nineteen of them means the next
+   * setting added gets this for free, and cannot be the one that forgets.
+   *
+   * Running twice on the originating client is harmless: writing the same
+   * value into the same field is idempotent.
+   */
+  const register = (key, definition) => game.settings.register(MODULE_ID, key, {
+    ...definition,
+    onChange: (value) => {
+      syncOpenSettingsForm(key, value);
+      definition.onChange?.(value);
+    },
+  });
+
+  /**
    * Which half answers.
    *
    * The bridge is the default because that is what this module IS — the
@@ -420,7 +449,7 @@ function registerSettings() {
    * not installed it yet, and saying so in the choice labels is the whole
    * upsell: there is no paywall here, only a download.
    */
-  game.settings.register(MODULE_ID, "answerSource", {
+  register("answerSource", {
     name: t("settings.answerSource.name"),
     hint: t("settings.answerSource.hint"),
     scope: "world",
@@ -433,7 +462,7 @@ function registerSettings() {
     },
   });
 
-  game.settings.register(MODULE_ID, "bridgeUrl", {
+  register("bridgeUrl", {
     name: t("settings.bridgeUrl.name"),
     hint: t("settings.bridgeUrl.hint"),
     scope: "client",
@@ -442,14 +471,14 @@ function registerSettings() {
     default: "",
   });
 
-  game.settings.register(MODULE_ID, "bridgeToken", {
+  register("bridgeToken", {
     scope: "client",
     config: false, // A secret has no business in a settings form.
     type: String,
     default: "",
   });
 
-  game.settings.register(MODULE_ID, "liteFolder", {
+  register("liteFolder", {
     name: t("settings.liteFolder.name"),
     hint: t("settings.liteFolder.hint"),
     scope: "world",
@@ -465,7 +494,7 @@ function registerSettings() {
    * spending from a browser that cannot pay for it, or publish the fact that a
    * key exists to everyone at the table.
    */
-  game.settings.register(MODULE_ID, "liteAnswers", {
+  register("liteAnswers", {
     name: t("settings.liteAnswers.name"),
     hint: t("settings.liteAnswers.hint"),
     scope: "world",
@@ -480,7 +509,7 @@ function registerSettings() {
    * refusal reads to a GM as the archive not knowing — the one thing the
    * citation rules exist to rule out.
    */
-  game.settings.register(MODULE_ID, "liteFilters", {
+  register("liteFilters", {
     name: t("settings.liteFilters.name"),
     hint: t("settings.liteFilters.hint"),
     scope: "world",
@@ -489,7 +518,7 @@ function registerSettings() {
     default: false,
   });
 
-  game.settings.register(MODULE_ID, "liteModel", {
+  register("liteModel", {
     name: t("settings.liteModel.name"),
     hint: t("settings.liteModel.hint"),
     scope: "world",
@@ -523,7 +552,7 @@ function registerSettings() {
    * that silently answers nothing if the permissions underneath it are not set
    * up. Hence opt-in.
    */
-  game.settings.register(MODULE_ID, "liteScope", {
+  register("liteScope", {
     name: t("settings.liteScope.name"),
     hint: t("settings.liteScope.hint"),
     scope: "world",
@@ -547,14 +576,14 @@ function registerSettings() {
    * Entered through the menu below, which states what it can and cannot
    * protect before it takes anything.
    */
-  game.settings.register(MODULE_ID, "geminiKey", {
+  register("geminiKey", {
     scope: "client",
     config: false,
     type: String,
     default: "",
   });
 
-  game.settings.register(MODULE_ID, "enabled", {
+  register("enabled", {
     name: t("settings.enabled.name"),
     hint: t("settings.enabled.hint"),
     scope: "world",
@@ -572,14 +601,14 @@ function registerSettings() {
    * existing world's database, and there is no migration hook that fires before
    * the first read.
    */
-  game.settings.register(MODULE_ID, "accessMode", {
+  register("accessMode", {
     scope: "world",
     config: false,
     type: String,
     default: "whisper",
   });
 
-  game.settings.register(MODULE_ID, "policyMigrated", {
+  register("policyMigrated", {
     scope: "world",
     config: false,
     type: Boolean,
@@ -589,7 +618,7 @@ function registerSettings() {
   /** Whether the first-run choice has been made or declined. Written either
    *  way, so declining is a decision the module remembers rather than a
    *  question it asks again every time the GM logs in. */
-  game.settings.register(MODULE_ID, "setupDone", {
+  register("setupDone", {
     scope: "world",
     config: false,
     type: Boolean,
@@ -603,7 +632,7 @@ function registerSettings() {
    * folders can share a name — and because the GM picks these from a list, so
    * nobody ever has to see or type an id.
    */
-  game.settings.register(MODULE_ID, "liteExtraFolders", {
+  register("liteExtraFolders", {
     scope: "world",
     config: false,
     type: Array,
@@ -619,7 +648,7 @@ function registerSettings() {
    * second list of names. The allow list below covers the cases a tier cannot
    * express.
    */
-  game.settings.register(MODULE_ID, "askPolicy", {
+  register("askPolicy", {
     name: t("settings.askPolicy.name"),
     hint: t("settings.askPolicy.hint"),
     scope: "world",
@@ -647,7 +676,7 @@ function registerSettings() {
    * Edited through the menu below rather than typed: a user id is a random
    * string nobody can recognise, so a text field here would be unusable.
    */
-  game.settings.register(MODULE_ID, "allowedUsers", {
+  register("allowedUsers", {
     scope: "world",
     config: false,
     type: Array,
@@ -662,7 +691,7 @@ function registerSettings() {
    * tables kept asking for: players may ask, but the GM reads the answer first
    * and decides what to say. That is `gm` here.
    */
-  game.settings.register(MODULE_ID, "replyVisibility", {
+  register("replyVisibility", {
     name: t("settings.replyVisibility.name"),
     hint: t("settings.replyVisibility.hint"),
     scope: "world",
@@ -676,7 +705,7 @@ function registerSettings() {
     },
   });
 
-  game.settings.register(MODULE_ID, "triggerCommand", {
+  register("triggerCommand", {
     name: t("settings.triggerCommand.name"),
     hint: t("settings.triggerCommand.hint"),
     scope: "world",
@@ -685,7 +714,7 @@ function registerSettings() {
     default: "tusk",
   });
 
-  game.settings.register(MODULE_ID, "botName", {
+  register("botName", {
     name: t("settings.botName.name"),
     hint: t("settings.botName.hint"),
     scope: "world",
@@ -1129,7 +1158,12 @@ async function openAllowList() {
       { action: "cancel", label: t("dialog.allowList.cancel") },
     ],
   });
-  dialog.render({ force: true });
+  void Promise.resolve(dialog.render({ force: true })).catch(err => {
+    // An ApplicationV2 render can reject, and an un-awaited rejection is an
+    // unhandled one: the dialog silently never appears and nothing says why.
+    warn("a dialog could not be rendered", err);
+    ui.notifications?.error?.(t("notify.dialogFailed"));
+  });
   return dialog;
 }
 
@@ -1218,7 +1252,12 @@ async function openLiteKeyDialog() {
       { action: "cancel", label: t("dialog.liteKey.cancel") },
     ],
   });
-  dialog.render({ force: true });
+  void Promise.resolve(dialog.render({ force: true })).catch(err => {
+    // An ApplicationV2 render can reject, and an un-awaited rejection is an
+    // unhandled one: the dialog silently never appears and nothing says why.
+    warn("a dialog could not be rendered", err);
+    ui.notifications?.error?.(t("notify.dialogFailed"));
+  });
   return dialog;
 }
 
@@ -1295,7 +1334,12 @@ async function openModelPicker() {
       { action: "cancel", label: t("dialog.model.cancel") },
     ],
   });
-  dialog.render({ force: true });
+  void Promise.resolve(dialog.render({ force: true })).catch(err => {
+    // An ApplicationV2 render can reject, and an un-awaited rejection is an
+    // unhandled one: the dialog silently never appears and nothing says why.
+    warn("a dialog could not be rendered", err);
+    ui.notifications?.error?.(t("notify.dialogFailed"));
+  });
   return dialog;
 }
 
@@ -1364,7 +1408,12 @@ async function openWhyUpgrade() {
     </div>`,
     buttons: [{ action: "close", label: t("dialog.why.close"), default: true }],
   });
-  dialog.render({ force: true });
+  void Promise.resolve(dialog.render({ force: true })).catch(err => {
+    // An ApplicationV2 render can reject, and an un-awaited rejection is an
+    // unhandled one: the dialog silently never appears and nothing says why.
+    warn("a dialog could not be rendered", err);
+    ui.notifications?.error?.(t("notify.dialogFailed"));
+  });
   return dialog;
 }
 
@@ -1454,7 +1503,12 @@ async function runFirstRun() {
       // than one that was never shown.
       close: () => resolve(null),
     });
-    dialog.render({ force: true });
+    void Promise.resolve(dialog.render({ force: true })).catch(err => {
+      // An ApplicationV2 render can reject, and an un-awaited rejection is
+      // an unhandled one: the dialog never appears and nothing says why.
+      warn("a dialog could not be rendered", err);
+      ui.notifications?.error?.(t("notify.dialogFailed"));
+    });
   }).then(async choice => {
     if (choice === null) await setSetting("setupDone", true).catch(() => {});
     return choice;
@@ -1658,7 +1712,12 @@ async function openFolderPicker() {
       { action: "cancel", label: t("dialog.folders.cancel") },
     ],
   });
-  dialog.render({ force: true });
+  void Promise.resolve(dialog.render({ force: true })).catch(err => {
+    // An ApplicationV2 render can reject, and an un-awaited rejection is an
+    // unhandled one: the dialog silently never appears and nothing says why.
+    warn("a dialog could not be rendered", err);
+    ui.notifications?.error?.(t("notify.dialogFailed"));
+  });
   return dialog;
 }
 
@@ -1715,7 +1774,12 @@ async function openFaq() {
     </div>`,
     buttons: [{ action: "close", label: t("dialog.faq.close"), default: true }],
   });
-  dialog.render({ force: true });
+  void Promise.resolve(dialog.render({ force: true })).catch(err => {
+    // An ApplicationV2 render can reject, and an un-awaited rejection is an
+    // unhandled one: the dialog silently never appears and nothing says why.
+    warn("a dialog could not be rendered", err);
+    ui.notifications?.error?.(t("notify.dialogFailed"));
+  });
   return dialog;
 }
 
@@ -1799,7 +1863,12 @@ async function openLorePermissions() {
     </div>`,
     buttons: [{ action: "close", label: t("dialog.perms.close"), default: true }],
   });
-  dialog.render({ force: true });
+  void Promise.resolve(dialog.render({ force: true })).catch(err => {
+    // An ApplicationV2 render can reject, and an un-awaited rejection is an
+    // unhandled one: the dialog silently never appears and nothing says why.
+    warn("a dialog could not be rendered", err);
+    ui.notifications?.error?.(t("notify.dialogFailed"));
+  });
   return dialog;
 }
 
@@ -2041,7 +2110,12 @@ function showCodeDialog(code) {
       content,
       buttons: [{ action: "close", label: t("dialog.pairing.close"), default: true }],
     });
-    dialog.render({ force: true });
+    void Promise.resolve(dialog.render({ force: true })).catch(err => {
+      // An ApplicationV2 render can reject, and an un-awaited rejection is
+      // an unhandled one: the dialog never appears and nothing says why.
+      warn("a dialog could not be rendered", err);
+      ui.notifications?.error?.(t("notify.dialogFailed"));
+    });
     return dialog;
   }
   const legacy = new Dialog({ title: t("dialog.pairing.title"), content, buttons: {} });
@@ -2401,7 +2475,16 @@ const LITE_LORE_GAP_FRAGMENT = "i am unsure about this detail";
 /** The lore folder, or null when the GM has not made one yet. */
 function loreFolder() {
   const name = (setting("liteFolder") || LITE_DEFAULT_FOLDER).trim().toLowerCase();
-  return game.folders?.find?.(f => f.type === "JournalEntry" && String(f.name).trim().toLowerCase() === name) ?? null;
+  const matches = game.folders?.filter?.(f => f.type === "JournalEntry" && String(f.name).trim().toLowerCase() === name) ?? [];
+  // TWO FOLDERS OF THE SAME NAME is silently taking the first one, and the
+  // symptom — "it is not reading my notes" — points at nothing a GM can see.
+  // Foundry allows the duplicate, so this cannot be prevented, only reported.
+  if (matches.length > 1) {
+    record("warn", "TV-LITE-FOLDER-AMBIGUOUS", "more than one journal folder has the lore folder's name; reading the first", {
+      folders: matches.length,
+    });
+  }
+  return matches[0] ?? null;
 }
 
 /**
@@ -2504,7 +2587,12 @@ function journalText(html) {
  * is the same leak one step quieter.
  */
 function mayRead(reader, page, entry) {
-  if (!reader) return true;
+  // FAIL CLOSED on a missing reader too. This used to return `true`, on the
+  // reasoning that every call site filters nulls before calling — which was
+  // true, and is exactly the kind of guarantee that stops being true one
+  // refactor later. A permission predicate whose first line admits everything
+  // is one missing null-check away from being the leak it exists to prevent.
+  if (!reader) return false;
   try {
     if (typeof page?.testUserPermission === "function") return page.testUserPermission(reader, "OBSERVER") === true;
     // A page that cannot answer for itself defers to its entry. Nothing Foundry
@@ -2576,72 +2664,157 @@ function tableAudience(asker) {
  * scope — the relay has already established that it is itself the active GM,
  * and a GM's own view is everything.
  */
+const LITE_SCOPES = new Set(["all", "shared", "asker"]);
+let warnedScopeUnknown = false;
+
+/**
+ * The scope this world is actually on — the single reading of `liteScope` that
+ * everything else asks.
+ *
+ * AN EMPTY SETTING AND AN UNRECOGNISED ONE ARE NOT THE SAME THING. Empty means
+ * never set, which is the documented default: `all`. Unrecognised means a value
+ * nobody can account for — a hand-edited world, a half-finished migration, a
+ * setting written by a version that is not this one.
+ *
+ * Both used to fall through to `all`, so any corrupt string silently turned the
+ * ownership filter OFF. That is a usability rule — "an unknown value should
+ * behave like the documented default" — applied to a security control, and it
+ * is the wrong way round: a value that cannot be read is a reason to show less,
+ * not more. Unknown now resolves to `shared`, the safest mode that still
+ * answers, and says so once rather than once per question.
+ */
+function currentScope() {
+  const raw = setting("liteScope");
+  if (raw === undefined || raw === null || raw === "") return "all";
+  const scope = String(raw);
+  if (LITE_SCOPES.has(scope)) return scope;
+  if (!warnedScopeUnknown) {
+    warnedScopeUnknown = true;
+    record("warn", "TV-LITE-SCOPE-UNKNOWN", "unrecognised lore scope; reading only what the table can open", { scope });
+  }
+  return "shared";
+}
+
 function loreAudience(asker) {
-  const scope = setting("liteScope") || "all";
+  const scope = currentScope();
   if (scope === "shared") return tableAudience(asker);
   if (scope === "asker") return [asker].filter(Boolean);
-  // `all`, and anything unrecognised. Falling back to no filter rather than to
-  // a filter is deliberate: an unknown value should behave like the documented
-  // default, not silently switch a table into a mode it did not choose.
+  // `all` ALONE means no filter, and the relay has already established that it
+  // is itself the active GM.
   return null;
 }
 
 /** Is the archivist reading Foundry's ownership at all? Everything that treats
  *  an answer as narrow depends on this being true. */
 function scopingIsOn() {
-  const scope = setting("liteScope") || "all";
+  const scope = currentScope();
   return scope === "asker" || scope === "shared";
 }
 
 /**
- * The one arrangement that turns a player's own journal into everyone's problem.
+ * The two ways a lore folder can expose something, counted.
  *
- * A note in the lore folder is not merely quoted — its text goes INTO the
- * prompt, so whoever can edit it is writing instructions the model reads next
- * to the archivist's own. Under `asker` scope that is contained by
- * construction: the corpus assembled for a player only ever holds documents
- * that player could already open, so the worst a planted note can do is talk to
- * its own author about their own material.
+ * `writable` — pages a non-GM can EDIT. A note in the folder is not merely
+ * quoted: its text goes INTO the prompt, so whoever can edit it is writing
+ * instructions the model reads next to the archivist's own.
  *
- * Under the default it is not contained. Every question is answered from the
- * whole folder whoever asked, so a note a player can edit sits in a prompt
- * alongside lore they cannot read, and can ask for it.
+ * `unreadable` — pages some player cannot OPEN in Foundry. Under `all` those
+ * are quoted to that player anyway, which is exactly what `all` means.
  *
- * WHAT THIS CHECKS CHANGED WHEN THE DEFAULT DID. It used to ask whether players
- * *could* create journals, which was reasonable when the wide scope was a
- * deliberate opt-in and is useless now that it is the default: Foundry grants
- * `JOURNAL_CREATE` to Trusted and above, so that test fires on ordinary worlds
- * where nothing is wrong, and a warning that cries wolf is one nobody reads on
- * the day it matters.
- *
- * So it asks the precise question instead: is there a document in the lore
- * folder that a non-GM can actually edit? That is checkable, it is the thing
- * that is actually true or false, and it stays quiet until it happens.
+ * Counting is separate from warning because the two numbers matter under
+ * different scopes, and because a count is worth having without a banner
+ * attached to it.
  */
-function warnIfScopeIsWideOpen() {
-  if (scopingIsOn()) return false;
-
+function countLoreExposure() {
   const folderIds = loreFolderIds();
-  if (!folderIds) return false;
+  if (!folderIds) return null;
   const players = game.users?.filter?.(u => !u.isGM) ?? [];
-  if (players.length === 0) return false;
+  if (players.length === 0) return null;
 
   // OWNER, not OBSERVER: being able to READ a lore note is the ordinary case
   // and the whole point of the folder. Being able to WRITE one is what puts
   // text of somebody else's choosing into the prompt.
   const owns = (user, doc) => doc?.testUserPermission?.(user, "OWNER") === true;
   let writable = 0;
+  let unreadable = 0;
   for (const entry of game.journal?.filter?.(e => folderIds.has(e.folder?.id ?? e.folder)) ?? []) {
-    const pages = entry.pages?.contents ?? entry.pages ?? [];
-    if (players.some(p => owns(p, entry) || [...pages].some(page => owns(p, page)))) writable += 1;
+    const pages = [...(entry.pages?.contents ?? entry.pages ?? [])];
+    if (players.some(p => owns(p, entry) || pages.some(page => owns(p, page)))) writable += 1;
+    // `mayRead` is the same predicate the scoped modes filter on, so this
+    // counts exactly the pages those modes would have withheld.
+    unreadable += pages.filter(page => players.some(p => !mayRead(p, page, entry))).length;
   }
-  if (writable === 0) return false;
+  return { writable, unreadable };
+}
 
-  record("warn", "TV-LITE-SCOPE-WIDE", "every answer reads the whole folder, and players can edit part of it", {
-    writableEntries: writable,
-  });
-  ui.notifications?.warn?.(t("notify.scopeWideOpen", { count: writable }), { permanent: true });
-  return true;
+/**
+ * Warn a GM about what the current scope is actually doing.
+ *
+ * WHAT THIS CHECKS CHANGED WHEN THE DEFAULT DID. It used to ask whether players
+ * *could* create journals, which was reasonable when the wide scope was a
+ * deliberate opt-in and is useless now that it is the default: Foundry grants
+ * `JOURNAL_CREATE` to Trusted and above, so that test fires on ordinary worlds
+ * where nothing is wrong, and a warning that cries wolf is one nobody reads on
+ * the day it matters. So it asks the precise questions instead — is there a
+ * page in the folder a non-GM can edit, and is there one they cannot read.
+ */
+function warnIfScopeIsWideOpen() {
+  // BOTH warnings are the GM's, and neither is a player's to act on. `onChange`
+  // fires on every connected client and `TusksVault.checkScope` is reachable by
+  // anyone, so without this a player is shown a permanent banner counting how
+  // much of the GM's folder they are not allowed to open.
+  if (!game.user?.isGM) return false;
+
+  // WHICH WARNING APPLIES DEPENDS ON THE SCOPE, and they are not the same set.
+  //
+  // The read warning is about `all` alone: the other two modes filter on
+  // exactly the predicate it counts, so under them the number is always zero.
+  //
+  // The write warning is about everything EXCEPT `asker`. That is the fix to a
+  // real gap — this used to return early for ANY scoping mode, so `shared` got
+  // silence. Injection is contained by construction under `asker` only, where
+  // the corpus assembled for a player holds just what that player could already
+  // open, so a planted note can only talk to its own author about their own
+  // material. Under `shared`, a page every player can read sits in EVERY
+  // asker's prompt — and a page a player can read is precisely the kind they
+  // are most likely to have been granted ownership of.
+  const scope = currentScope();
+  const watchRead = scope === "all";
+  const watchWrite = scope !== "asker";
+  if (!watchRead && !watchWrite) return false;
+
+  const counts = countLoreExposure();
+  if (!counts) return false;
+  const writable = watchWrite ? counts.writable : 0;
+  const unreadable = watchRead ? counts.unreadable : 0;
+
+  // THE READ CASE, which is the one the shipped default actually creates.
+  //
+  // Until 1.1.1 this asked only about WRITE access — the prompt-injection
+  // precondition — so a GM whose folder was perfectly locked down got silence
+  // while every answer quoted pages their players cannot open. The warning
+  // existed and did not cover the thing that was happening.
+  //
+  // It is not a defect being reported. Reading the whole folder is what `all`
+  // means, and it is the default for a good reason: Foundry starts every
+  // journal at `{default: NONE}`, so scoping out of the box answers "I could
+  // not find anything" to everything. But a GM cannot weigh a trade-off nobody
+  // has put a number on, and this is the number.
+  if (unreadable > 0) {
+    record("warn", "TV-LITE-SCOPE-UNREADABLE", "answers may quote pages some players cannot open", {
+      unreadablePages: unreadable,
+    });
+    ui.notifications?.warn?.(t("notify.scopeUnreadable", { count: unreadable }), { permanent: true });
+  }
+
+  if (writable > 0) {
+    record("warn", "TV-LITE-SCOPE-WIDE", "every answer reads the whole folder, and players can edit part of it", {
+      writableEntries: writable,
+    });
+    ui.notifications?.warn?.(t("notify.scopeWideOpen", { count: writable }), { permanent: true });
+  }
+
+  return unreadable > 0 || writable > 0;
 }
 
 /**
@@ -2670,7 +2843,12 @@ function collectLore(asker) {
   for (const entry of entries) {
     const pages = entry.pages?.contents ?? entry.pages ?? [];
     for (const page of [...pages]) {
-      if (audience && !audience.every(reader => mayRead(reader, page, entry))) continue;
+      // `null` IS THE ONLY VALUE THAT MEANS "NO FILTER". An empty array is not
+      // the same thing, and `[].every(...)` is `true` — so an audience that came
+      // out empty used to admit every page in the folder, turning per-asker
+      // scoping into no scoping at exactly the moment the asker went missing.
+      // Empty now means nobody, which is what it says.
+      if (audience !== null && (audience.length === 0 || !audience.every(reader => mayRead(reader, page, entry)))) continue;
       const text = journalText(page?.text?.content ?? "");
       // Image, video and PDF pages reduce to nothing. Skipping them keeps a
       // named-but-empty document out of the ranking, where it would match on
@@ -2717,7 +2895,10 @@ function rankLore(question, docs) {
       let hits = 0;
       let matched = 0;
       for (const term of terms) {
-        const count = haystack.split(term).length - 1;
+        // `split(term).length - 1` allocates every piece of every document for
+        // every term, on the GM's UI thread, once per question. Same count.
+        let count = 0;
+        for (let i = haystack.indexOf(term); i >= 0; i = haystack.indexOf(term, i + term.length)) count += 1;
         if (count > 0) matched += 1;
         hits += count;
       }
@@ -2731,17 +2912,71 @@ function rankLore(question, docs) {
     .sort((a, b) => b.score - a.score);
 }
 
-/** A short piece of the document around the first match, for the search card. */
-function excerptFor(doc, question) {
-  const terms = searchTerms(question);
-  const lower = doc.text.toLowerCase();
+/**
+ * Where in `text` the question first matches, or -1.
+ *
+ * `String#toLowerCase` IS NOT LENGTH-PRESERVING for every input — U+0130, the
+ * Turkish dotted capital I, is one code unit and folds to two — so an index
+ * found in the folded copy can name a different character in the original, and
+ * every slice after it shifts. Rather than mis-slice, a fold that changed the
+ * length reports "no match"; both callers then take the passage from the front,
+ * which is always in range.
+ */
+function firstMatchIndex(text, question) {
+  const lower = text.toLowerCase();
+  if (lower.length !== text.length) return -1;
   let at = -1;
-  for (const term of terms) {
+  for (const term of searchTerms(question)) {
     const found = lower.indexOf(term);
     if (found >= 0 && (at < 0 || found < at)) at = found;
   }
+  return at;
+}
+
+/**
+ * Drop a half-character left at either end of a slice.
+ *
+ * Both slicers below cut by UTF-16 code unit, so a boundary landing inside a
+ * surrogate pair — any emoji or CJK extension in a lore note — leaves a lone
+ * surrogate behind. On the way to the model it degrades to U+FFFD at UTF-8
+ * encoding; on the way to the chat log it reaches `escapeHtml` and renders as a
+ * replacement glyph in the middle of the quoted passage.
+ *
+ * Written with `charCodeAt` rather than a regex so the surrogate ranges are not
+ * themselves spelled as escapes in this file.
+ */
+function trimSurrogates(text) {
+  let out = String(text ?? "");
+  const first = out.charCodeAt(0);
+  if (first >= 0xDC00 && first <= 0xDFFF) out = out.slice(1);
+  const last = out.charCodeAt(out.length - 1);
+  if (last >= 0xD800 && last <= 0xDBFF) out = out.slice(0, -1);
+  return out;
+}
+
+/**
+ * A page name safe to put in the prompt's own structural header.
+ *
+ * The header is `[SOURCE: <name>]`, and the name is a document title — which a
+ * player authors wherever Foundry grants `JOURNAL_CREATE`, which it does at
+ * Trusted and above. A title containing a bracket or a newline can CLOSE that
+ * header and open a forged one, which is a pseudo-system turn written by
+ * whoever named the page. Brackets and line breaks out, whitespace collapsed,
+ * length bounded.
+ *
+ * The same label is used for the search card's markers and for `sourceMap`, so
+ * what the model can cite is exactly what resolves to a link.
+ */
+function sourceLabel(name) {
+  const clean = String(name ?? "").replace(/[\r\n[\]]/g, " ").replace(/\s+/g, " ").trim();
+  return clean.slice(0, 120) || "(untitled)";
+}
+
+/** A short piece of the document around the first match, for the search card. */
+function excerptFor(doc, question) {
+  const at = firstMatchIndex(doc.text, question);
   const start = Math.max(0, (at < 0 ? 0 : at) - 60);
-  const slice = doc.text.slice(start, start + 240).replace(/\s+/g, " ").trim();
+  const slice = trimSurrogates(doc.text.slice(start, start + 240)).replace(/\s+/g, " ").trim();
   return `${start > 0 ? "…" : ""}${slice}${start + 240 < doc.text.length ? "…" : ""}`;
 }
 
@@ -2762,7 +2997,10 @@ function excerptFor(doc, question) {
  */
 function sourceMap(docs) {
   const map = {};
-  for (const doc of docs) if (doc?.name && doc?.uuid) map[doc.name] = doc.uuid;
+  // Keyed on the LABEL, not the raw name: the model can only cite what it was
+  // shown, and what it was shown went through `sourceLabel`. Sanitising one
+  // side and not the other would make every citation render as unverified.
+  for (const doc of docs) if (doc?.name && doc?.uuid) map[sourceLabel(doc.name)] = doc.uuid;
   return map;
 }
 
@@ -2775,7 +3013,10 @@ function searchAnswer(question, docs, extra = {}) {
     };
   }
   const lines = [t("lite.searchHeader", { count: ranked.length })];
-  for (const doc of ranked) lines.push(`- ${excerptFor(doc, question)} [${doc.name}]`);
+  // Same label rule as the prompt: a page called "speculation" must not render
+  // as the speculation chip, and a bracket in a page name must not forge a
+  // marker that `citations()` then parses.
+  for (const doc of ranked) lines.push(`- ${excerptFor(doc, question)} [${sourceLabel(doc.name)}]`);
   return {
     content: [{ type: "text", text: lines.join("\n") }],
     _meta: {
@@ -2837,9 +3078,39 @@ function rankModels(names) {
     .sort((a, b) => b.major - a.major || b.minor - a.minor || Number(a.lite) - Number(b.lite));
 }
 
+/**
+ * `fetchJson` for Google, with the browser's own failure prose translated.
+ *
+ * `VaultBridge.rpc` goes to real trouble to turn a fetch rejection into a
+ * sentence a GM can act on, distinguishing an abort from an unreachable host.
+ * The lite path had no equivalent, so a GM whose wifi dropped mid-session read
+ * "Failed to fetch" (Chrome) or "NetworkError when attempting to fetch
+ * resource" (Firefox) on the card and went to check a Foundry connection that
+ * was visibly working — they were reading the message it had just delivered.
+ * A two-minute hang surfaced as "The operation was aborted", which names
+ * nothing at all.
+ *
+ * Its own codes, so the two are distinguishable in a diagnostics dump.
+ */
+async function geminiFetch(url, options, timeoutMs) {
+  try {
+    return await fetchJson(url, options, timeoutMs);
+  } catch (err) {
+    // Anything already translated passes through; only the raw rejection from
+    // `fetch` itself needs this.
+    if (err instanceof BridgeError) throw err;
+    const timedOut = err?.name === "AbortError";
+    throw new BridgeError(
+      0,
+      timedOut ? t("lite.timedOut") : t("lite.offline"),
+      timedOut ? "TV-LITE-TIMEOUT" : "TV-LITE-OFFLINE"
+    );
+  }
+}
+
 /** Every model this key can reach, unfiltered. Names only. */
 async function fetchGeminiModels(key) {
-  const res = await fetchJson(LITE_ENDPOINT, { headers: { "x-goog-api-key": key } }, 20_000);
+  const res = await geminiFetch(LITE_ENDPOINT, { headers: { "x-goog-api-key": key } }, 20_000);
   if (!res.ok) {
     throw new BridgeError(
       res.status,
@@ -2886,15 +3157,17 @@ const LITE_MIN_TRUNCATED_CHARS = 2000;
  */
 function windowAround(doc, question, room) {
   if (doc.text.length <= room) return doc.text;
-  const lower = doc.text.toLowerCase();
-  let at = -1;
-  for (const term of searchTerms(question)) {
-    const found = lower.indexOf(term);
-    if (found >= 0 && (at < 0 || found < at)) at = found;
-  }
-  if (at < 0) return doc.text.slice(0, room);
-  const start = Math.max(0, Math.min(at - Math.floor(room / 4), doc.text.length - room));
-  return `${start > 0 ? "… " : ""}${doc.text.slice(start, start + room)}`;
+  const at = firstMatchIndex(doc.text, question);
+  if (at < 0) return trimSurrogates(doc.text.slice(0, room));
+
+  // The lead-in marker is PAID FOR out of `room`, not added on top of it. The
+  // caller sized `room` against what is left of the prompt budget, so returning
+  // `room + 2` characters quietly overspends the cap it was asked to respect.
+  const lead = "… ";
+  const body = room - lead.length;
+  const start = Math.max(0, Math.min(at - Math.floor(body / 4), doc.text.length - body));
+  if (start === 0) return trimSurrogates(doc.text.slice(0, room));
+  return `${lead}${trimSurrogates(doc.text.slice(start, start + body))}`;
 }
 
 /** As much of the corpus as fits, best matches first, each labelled so the
@@ -2913,7 +3186,13 @@ function buildPrompt(question, docs) {
   // regardless of how the leftovers are then handled.
   const tooLarge = [];
   for (const doc of ordered) {
-    const block = `[SOURCE: ${doc.name}]\n${doc.text}\n`;
+    // SANITISED, not interpolated raw. The name is a document title, and a
+    // title is authored by whoever can create a journal — Trusted and above in
+    // Foundry's defaults. A bracket or a newline in one closes this header and
+    // opens a forged one: a pseudo-system turn written by whoever named the
+    // page. `sourceMap` keys on the same label, so what the model is able to
+    // cite stays exactly what resolves to a link.
+    const block = `[SOURCE: ${sourceLabel(doc.name)}]\n${doc.text}\n`;
     if (block.length <= budget) {
       parts.push(block);
       used.push(doc);
@@ -2938,7 +3217,7 @@ function buildPrompt(question, docs) {
   // its least relevant part.
   if (tooLarge.length > 0) {
     const [best, ...rest] = tooLarge;
-    const header = `[SOURCE: ${best.name}]\n`;
+    const header = `[SOURCE: ${sourceLabel(best.name)}]\n`;
     const room = budget - header.length - TRUNCATION_MARKER.length - 1;
     if (room >= LITE_MIN_TRUNCATED_CHARS) {
       parts.push(`${header}${windowAround(best, question, room)}${TRUNCATION_MARKER}\n`);
@@ -2953,6 +3232,14 @@ function buildPrompt(question, docs) {
   return {
     used,
     included: used.length,
+    // `considered` IS WHAT `included` IS A FRACTION OF: the documents that
+    // matched the question at all. `total` is the whole folder, a different
+    // number — and it was the one being reported, so a hundred-page folder with
+    // three matches said "Read 3 of 100 notes, the rest did not fit", blaming
+    // the size cap for ninety-seven notes that were simply about something
+    // else. A GM reading that concludes their folder is too big to use and
+    // starts deleting notes to fix a problem they do not have.
+    considered: ordered.length,
     total: docs.length,
     dropped,
     truncated,
@@ -3011,6 +3298,7 @@ async function askGemini(question, docs, { key, model }) {
   if (prompt.dropped > 0 || prompt.truncated) {
     record("warn", "TV-LITE-CORPUS-CAPPED", "the corpus did not fit in one question", {
       included: prompt.included,
+      considered: prompt.considered,
       total: prompt.total,
       dropped: prompt.dropped,
       truncated: prompt.truncated,
@@ -3030,6 +3318,7 @@ async function askGemini(question, docs, { key, model }) {
         narrowed: prompt.used.some(doc => doc.shared === false),
         corpus: {
           included: prompt.included,
+          considered: prompt.considered,
           total: prompt.total,
           dropped: prompt.dropped,
           truncated: prompt.truncated,
@@ -3045,7 +3334,7 @@ async function askGemini(question, docs, { key, model }) {
  * log, proxy log and browser history entry between here and Google.
  */
 function requestGemini(prompt, key, model) {
-  return fetchJson(
+  return geminiFetch(
     `${LITE_ENDPOINT}/${encodeURIComponent(model)}:generateContent`,
     {
       method: "POST",
@@ -3083,14 +3372,24 @@ async function recoverModel(key, current) {
   if (!best || best === current) return null;
 
   record("warn", "TV-LITE-MODEL-MOVED", `"${current}" is gone; using "${best}"`);
+  let saved = false;
   if (game.user?.isGM) {
     try {
       await setSetting("liteModel", best);
+      saved = true;
     } catch (err) {
       warn("could not save the replacement model", err);
     }
   }
-  ui.notifications?.info?.(t("notify.modelMoved", { from: current, to: best }));
+
+  // TELL THE GM WHAT ACTUALLY HAPPENED, and tell nobody else. This used to
+  // announce "the model was changed" unconditionally — including when the write
+  // had just failed, and on a client that is not a GM and therefore never
+  // wrote at all. A GM who reads that and finds the setting unchanged next
+  // session has been told something untrue by the thing reporting the repair.
+  if (game.user?.isGM) {
+    ui.notifications?.info?.(t(saved ? "notify.modelMoved" : "notify.modelMovedOnce", { from: current, to: best }));
+  }
   return best;
 }
 
@@ -3194,8 +3493,24 @@ function renderAnswer(text, sources = {}) {
   // placeholders below cannot be forged by a model emitting one.
   const safe = escapeHtml(String(text ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ""));
 
+  // FOUNDRY ENRICHES CHAT CONTENT, and enricher syntax carries no HTML
+  // metacharacters — so `@UUID[...]`, `@Embed[...]` and `[[/r 1d20]]` pass
+  // through `escapeHtml` byte for byte. `citations()` eats most bracketed runs,
+  // but its generic pattern caps at 60 characters and a page uuid is 63, so an
+  // `@Embed[JournalEntry.<16>.JournalEntryPage.<16>]` the model was talked into
+  // emitting survives intact into the chat log — where Foundry renders it as a
+  // native link or an inline document, inside the card's own "this came from
+  // your archive" styling. That is UI spoofing at minimum, and the model's
+  // output is the least trusted text on the page.
+  //
+  // The text is already HTML-escaped at this point, so inserting an entity is
+  // safe: it renders as the character and no longer parses as a marker.
+  const inert = safe
+    .replace(/@(?=[A-Za-z]+\[)/g, "&#64;")
+    .replace(/\[\[/g, "[&#91;");
+
   const fences = [];
-  const withoutFences = safe.replace(/```[^\n]*\n?([\s\S]*?)```/g, (_m, code) => {
+  const withoutFences = inert.replace(/```[^\n]*\n?([\s\S]*?)```/g, (_m, code) => {
     fences.push(`<pre><code>${code.replace(/\n+$/, "")}</code></pre>`);
     return `${FENCE_SENTINEL}${fences.length - 1}${FENCE_SENTINEL}`;
   });
@@ -3472,12 +3787,19 @@ function upsellFooter(meta) {
 function corpusNote(meta, narrowedForId) {
   const notes = [];
   const corpus = meta?.corpus;
-  if (corpus && (corpus.dropped > 0 || corpus.truncated)) {
-    notes.push(t("lite.corpusCapped", {
+  // TWO DIFFERENT FAILURES, TOLD APART. "Some of what matched was never read"
+  // and "one long note was read in part" have different remedies — split the
+  // folder up, versus nothing, the answer is fine — and saying both with one
+  // sentence about not fitting told a GM to fix the wrong one.
+  if (corpus && corpus.dropped > 0) {
+    notes.push(t("lite.corpusDropped", {
       included: corpus.included,
-      total: corpus.total,
+      // A bridge answer's corpus block comes from Vault, which does not send
+      // `considered`. Falling back to `total` keeps the old wording for it.
+      considered: corpus.considered ?? corpus.total,
     }));
   }
+  if (corpus && corpus.truncated) notes.push(t("lite.corpusTruncated"));
   if (narrowedForId) notes.push(t("chat.answeredPrivately"));
   return notes.map(note => `<p class="notes tusks-vault-note">${escapeHtml(note)}</p>`).join("");
 }
@@ -3576,7 +3898,7 @@ function reportTriggerFailure(err) {
   ui.notifications?.error?.(t("notify.triggerFailed", { detail: err?.message ?? String(err) }));
 }
 
-Hooks.on("chatMessage", (_chatLog, message) => {
+const onChatMessage = (_chatLog, message) => {
   // Deciding whether the message is even ours gets its own try, and declines on
   // failure. At this point it is far more likely to be someone's ordinary chat
   // than a question for the archivist, and swallowing the table's chat would be
@@ -3617,13 +3939,96 @@ Hooks.on("chatMessage", (_chatLog, message) => {
     reportTriggerFailure(err);
     return false;
   }
-});
+};
+
+// A MARKER THE DIAGNOSTICS CAN SEE without reading this function back as
+// source. `selfTest` reports whether the trigger hook is registered, and it
+// used to answer by searching the function text for a name a minifier is
+// free to rewrite.
+onChatMessage.tusksVaultTrigger = true;
+Hooks.on("chatMessage", onChatMessage);
 
 // ─── Chat: the GM's side ─────────────────────────────────────────────────────
 
-Hooks.on("createChatMessage", async (message) => {
-  const query = message.flags?.[MODULE_ID]?.query;
-  if (!query) return;
+// ─── What a question is allowed to cost ──────────────────────────────────────
+//
+// THE RELAY SPENDS THE GM'S MONEY ON A PLAYER'S SAY-SO. That is the arrangement
+// lite mode is: a player types `/tusk …`, the active GM's browser assembles up
+// to `LITE_CORPUS_CHAR_CAP` of lore and calls Gemini with the GM's own key. It
+// is the right design — the key never leaves the one browser that holds it —
+// but until 1.1.1 nothing on that path was bounded, so "a player at your table
+// can spend your key" was true, unlimited and undocumented.
+//
+// BOUNDED BY CONCURRENCY, NOT BY A CLOCK. A rate limit per minute is the
+// obvious shape and it is the wrong one here: any window generous enough never
+// to interrupt a real table is also generous enough to be worth abusing, and a
+// window tight enough to matter eventually refuses a GM who is simply testing
+// their own notes. Nobody can meaningfully ask a second question before the
+// first one comes back, so ONE IN THE AIR PER PERSON costs a real table
+// nothing and bounds a script completely: five hundred messages arriving in one
+// tick claim the slot once and are refused four hundred and ninety-nine times.
+// What remains is bounded by Google's own latency rather than by typing speed.
+//
+// THE CLAIM IS MADE BEFORE THE FIRST `await`, which is what makes that true.
+// JavaScript runs each hook invocation's synchronous prefix to completion, so
+// the burst is refused without any of it reaching a `fetch`.
+//
+// Deliberately NOT a spend cap in currency: this module cannot see prices, and
+// a limit it cannot enforce honestly is worse than none. Google's own budget
+// cap remains the backstop, and SECURITY.md says so.
+const ASK_QUESTION_MAX_CHARS = 2_000;
+const ASK_MAX_IN_FLIGHT = 4;
+
+/** Who has a question in the air right now. */
+const asking = new Set();
+
+/** `null` when the question may proceed — and it CLAIMS the slot in the same
+ *  synchronous step, which is the whole point. Any other value is the code
+ *  naming which limit was met. Every path that claims must `releaseAskSlot`. */
+function claimAskSlot(userId) {
+  if (asking.has(userId)) return "TV-ASK-BUSY";
+  if (asking.size >= ASK_MAX_IN_FLIGHT) return "TV-ASK-QUEUE";
+  asking.add(userId);
+  return null;
+}
+
+function releaseAskSlot(userId) {
+  asking.delete(userId);
+}
+
+Hooks.on("createChatMessage", (message) => {
+  // THE HOOK ITSELF MUST NOT THROW. Foundry does not await a hook's return, so
+  // a rejection here is an unhandled promise rejection: nothing posted, nothing
+  // recorded, and the asker's question left in the log with no answer and no
+  // error card — the exact "this module is broken" outcome the rest of this
+  // file works to avoid. The trigger that actually happens is another module
+  // vetoing message creation from `preCreateChatMessage`, which makes
+  // `ChatMessage.create` resolve to `undefined` and every `update` below a
+  // TypeError thrown from inside the handler meant to report it.
+  //
+  // The (already-settled) promise is still RETURNED. Foundry ignores it, and
+  // returning it is what lets this be tested at all — a caller that cannot wait
+  // for the answer can only assert on the placeholder.
+  return relayQuestion(message).catch(err => {
+    warn("the archivist hook failed", err);
+    record("error", "TV-ASK-HOOK-FAILED", "a question was lost before any answer could be posted", {
+      cause: err?.code ?? err?.name ?? "(unknown)",
+    });
+    // Belt and braces. Every path inside releases its own slot; if one ever
+    // stops doing so, the cost is that person never being answered again this
+    // session, which is too quiet a failure to leave to care alone.
+    releaseAskSlot(message?.author?.id);
+  });
+});
+
+async function relayQuestion(message) {
+  const raw = message.flags?.[MODULE_ID]?.query;
+  if (!raw) return;
+  // A QUESTION IS BOUNDED. The flag is written by whoever authored the message,
+  // and nothing between there and the prompt limited its size — so a two
+  // hundred kilobyte "question" was two hundred kilobytes of billed tokens on
+  // the GM's key, every time it was asked.
+  const query = String(raw).slice(0, ASK_QUESTION_MAX_CHARS);
   if (!setting("enabled")) return;
 
   // `author` is Foundry's own attribution, set server-side. Never trust
@@ -3668,6 +4073,27 @@ Hooks.on("createChatMessage", async (message) => {
     return;
   }
 
+  // THE SPEND BUDGET, before anything that costs. Deliberately placed after
+  // the policy check — someone who may not ask at all should be told that, not
+  // told to slow down — and before the first `await`, which is what makes it
+  // hold against a burst.
+  const overBudget = claimAskSlot(author.id);
+  if (overBudget) {
+    record("info", "TV-ASK-BUDGET", "a question was refused by the relay's own budget", {
+      code: overBudget,
+      askerRole: author.role ?? "(unknown)",
+    });
+    // Whispered to the asker and the relay, like the policy refusal: this is
+    // not the table's business, and the asker is the one who needs to know the
+    // question did not land.
+    await ChatMessage.create({
+      content: overBudget === "TV-ASK-BUSY" ? t("chat.askBusy") : t("chat.askQueue"),
+      speaker,
+      whisper: [author.id, game.user.id],
+    });
+    return;
+  }
+
   // Lite answers from this client and needs no pairing, so the whole bridge
   // resolution — discovery, token, session — is skipped rather than failed.
   const lite = usingLite();
@@ -3693,6 +4119,7 @@ Hooks.on("createChatMessage", async (message) => {
     record("warn", "TV-ASK-UNPAIRED", "relayed a question with no usable bridge", {
       relayIsAsker: author.id === game.user.id,
     });
+    releaseAskSlot(author.id);
     return;
   }
 
@@ -3703,21 +4130,59 @@ Hooks.on("createChatMessage", async (message) => {
   // a broken module looks like. One line telling them where the answer went is
   // the whole difference.
   if (whisper.length > 0 && !whisper.includes(author.id)) {
-    await ChatMessage.create({
-      content: t("chat.answeredToGM"),
-      speaker,
-      whisper: [author.id],
-    });
+    try {
+      await ChatMessage.create({
+        content: t("chat.answeredToGM"),
+        speaker,
+        whisper: [author.id],
+      });
+    } catch (err) {
+      // A COURTESY NOTE MUST NOT ABORT THE ANSWER. Unguarded, a throw here
+      // escaped before the try below and left the asker's slot claimed with
+      // nothing to release it, so that person could never ask again this
+      // session — a worse outcome than the note they did not get.
+      warn("could not tell the asker where the answer went", err);
+    }
   }
 
   // A placeholder goes up immediately. An answer can take 5-10 seconds on a
   // subscription provider and longer behind a queue; silence for that long
   // reads as broken.
-  const placeholder = await ChatMessage.create({
-    content: `<em class="tusks-vault-thinking">${t("chat.thinking")}</em>`,
-    speaker,
-    whisper,
-  });
+  //
+  // THREE WAYS IT CAN FAIL, and the try covers all of them: a synchronous throw
+  // from another module's `preCreateChatMessage` veto, a rejected promise, and
+  // a resolved `undefined`. `await` alone handles none of them — it re-throws
+  // the first two out of a handler nothing is awaiting.
+  let placeholder = null;
+  try {
+    placeholder = await ChatMessage.create({
+      content: `<em class="tusks-vault-thinking">${t("chat.thinking")}</em>`,
+      speaker,
+      whisper,
+    });
+  } catch (err) {
+    warn("the placeholder could not be posted", err);
+  }
+
+  // NO PLACEHOLDER MEANS NO ANSWER TO UPDATE. Another module vetoing creation
+  // from `preCreateChatMessage` makes this `undefined`, and every `update`
+  // below then threw a TypeError — including the one inside the catch block,
+  // which turned a handled failure into a lost one. Say so once, to the person
+  // who can act on it, and stop.
+  if (!placeholder) {
+    record("error", "TV-ASK-NOPLACEHOLDER", "a question was not answered: the chat card could not be created");
+    try {
+      await ChatMessage.create({
+        content: `<div class="tusks-vault-answer is-error"><p>${t("chat.failed")}</p><p class="notes">TV-ASK-NOPLACEHOLDER</p></div>`,
+        speaker,
+        whisper: [author.id, game.user.id],
+      });
+    } catch {
+      // Nothing can be posted at all. The record above is the whole report.
+    }
+    releaseAskSlot(author.id);
+    return;
+  }
 
   try {
     // One shape either way. `answerLocally` returns what `ask_lore` returns,
@@ -3739,7 +4204,7 @@ Hooks.on("createChatMessage", async (message) => {
     );
 
     const text = result?.content?.map(part => part.text ?? "").join("\n").trim();
-    const meta = result?._meta?.["tusks-vault"] ?? {};
+    const meta = result?._meta?.[MODULE_ID] ?? {};
     const body = text || t("chat.noAnswer");
 
     const classes = ["tusks-vault-answer"];
@@ -3767,22 +4232,46 @@ Hooks.on("createChatMessage", async (message) => {
     // *Everyone, in the open* quietly not working, with nothing to explain it.
     // Two settings fighting is worse than either losing. The spoiler trade-off
     // that remains is the documented one, and *Who may ask* is its answer.
-    const patch = {};
-    if (meta.narrowed && whisper.length === 0 && scopingIsOn()) {
-      patch.whisper = whisperTargets("asker", author.id);
-      record("info", "TV-ANSWER-NARROWED", "private sources; answered privately rather than publicly");
-    }
+    const narrowedToAsker = meta.narrowed && whisper.length === 0 && scopingIsOn();
 
     // NOT wrapped in a <p>. `renderAnswer` emits block-level markup —
     // paragraphs, lists, blockquotes — and a <p> cannot contain any of them:
     // the browser auto-closes it at the first block child, leaving an empty
     // paragraph that then collects the `:first-child` margin rule meant for
     // the real first block.
-    patch.content = `<div class="${classes.join(" ")}">` +
+    const answerHtml = `<div class="${classes.join(" ")}">` +
       `${renderAnswer(body, meta.sources)}` +
-      `${corpusNote(meta, patch.whisper ? author.id : null)}` +
+      `${corpusNote(meta, narrowedToAsker ? author.id : null)}` +
       `${upsellFooter(meta)}</div>`;
-    await placeholder.update(patch);
+
+    if (narrowedToAsker) {
+      // NEVER NARROW A DOCUMENT THAT WAS ALREADY PUBLIC.
+      //
+      // This used to re-aim the placeholder — set `whisper` and the restricted
+      // content in one atomic update — which is the right instinct and the
+      // wrong direction. The document already exists on every client with
+      // `whisper: []`, so the safety of narrowing it rests on Foundry receiving
+      // the update, re-evaluating `ChatMessage#visible` and REMOVING an element
+      // it has already rendered. Widening an audience is always safe; narrowing
+      // one after the fact depends on behaviour this module does not control.
+      //
+      // So the restricted content never touches a document that was ever
+      // public. The placeholder stays public and becomes a notice — the table
+      // still sees that something was asked and answered, which is what the
+      // re-aiming was for — and the answer itself is a new message that is
+      // whispered from the moment it exists.
+      record("info", "TV-ANSWER-NARROWED", "private sources; answered privately rather than publicly");
+      await placeholder.update({
+        content: `<em class="tusks-vault-thinking">${t("chat.narrowedPublicly")}</em>`,
+      });
+      await ChatMessage.create({
+        content: answerHtml,
+        speaker,
+        whisper: whisperTargets("asker", author.id),
+      });
+    } else {
+      await placeholder.update({ content: answerHtml });
+    }
   } catch (err) {
     warn("ask_lore failed", err);
     // The BridgeError constructor already logged the cause with its code; this
@@ -3798,7 +4287,12 @@ Hooks.on("createChatMessage", async (message) => {
       questionLength: String(query ?? "").length,
       askerIsGM: author.isGM === true,
     });
-    const detail = escapeHtml(err?.message ?? String(err));
+    // THROUGH THE SCRUBBER, not just the escaper. This prose can be the Vault
+    // address or Google's own error text, which carries a cloud project number
+    // — and when the GM is the asker and answers go to everyone, this card is
+    // public. The scrubber already has a pattern for exactly this content; it
+    // was only ever pointed at the diagnostics buffer.
+    const detail = escapeHtml(scrubForDump(err?.message ?? String(err)));
     const askerIsRelay = author.id === game.user.id;
 
     // The placeholder KEEPS its audience. Narrowing the whisper to the GM here
@@ -3828,6 +4322,10 @@ Hooks.on("createChatMessage", async (message) => {
       content: askerIsRelay
         ? `<div class="tusks-vault-answer is-error"><p>${t("chat.failed")}</p><p class="notes">${detail}</p>${hintHtml}<p class="notes">${code}</p></div>`
         : `<div class="tusks-vault-answer is-error"><p>${t("chat.failed")}</p></div>`,
+    }).catch?.(() => {
+      // The card could not be updated — the message was deleted, or the same
+      // veto that can stop a creation stopped this. The GM whisper below is
+      // then the only report there will be, so it must still run.
     });
 
     if (!askerIsRelay) {
@@ -3841,8 +4339,10 @@ Hooks.on("createChatMessage", async (message) => {
         whisper: [game.user.id],
       });
     }
+  } finally {
+    releaseAskSlot(author.id);
   }
-});
+}
 
 // ─── Which ground is this card painted on? ───────────────────────────────────
 
@@ -4045,7 +4545,16 @@ Hooks.once("ready", async () => {
     return;
   }
 
-  const activeBridge = await resolveBridge();
+  // Wrapped, like the migration above it. A throw here is in a `ready` hook
+  // Foundry does not await, so it would be an unhandled rejection that leaves
+  // the module looking loaded and silently unpaired.
+  const activeBridge = await resolveBridge().catch(err => {
+    warn("could not resolve the bridge on load", err);
+    record("error", "TV-READY-BRIDGE", "the bridge could not be resolved at load", {
+      cause: err?.code ?? err?.name ?? "(unknown)",
+    });
+    return null;
+  });
   if (!activeBridge) {
     // Not an error — a fresh install is simply unpaired, and nagging every GM
     // at every load would be worse than the one notification that tells them
@@ -4081,7 +4590,11 @@ globalThis.TusksVault = {
       moduleVersion: mod?.version,
       settingsRegistered: [...(game.settings?.settings?.keys?.() ?? [])].filter(k => k.startsWith(MODULE_ID)).length,
       chatHooks: hooks.length,
-      triggerHookRegistered: hooks.some(h => String(h.fn).includes("parseTrigger")),
+      // An explicit marker rather than reading the function's own source:
+      // `String(fn).includes(...)` breaks the moment anything minifies this
+      // file, and it breaks SILENTLY — reporting "not registered" for a hook
+      // that is, in the one dump written to diagnose exactly that.
+      triggerHookRegistered: hooks.some(h => h.fn?.tusksVaultTrigger === true),
       enabled: setting("enabled"),
       answerSource: setting("answerSource"),
       liteAnswersEnabled: setting("liteAnswers"),

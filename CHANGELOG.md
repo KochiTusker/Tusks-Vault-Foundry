@@ -13,6 +13,72 @@ changes when something is added, the last when something is fixed.
 
 ---
 
+## 1.1.1
+
+**Update if you use Lite.** A settings panel promised something the default does
+not do, the note under capped answers blamed the wrong thing, and a player could
+spend your Gemini key without limit. Nothing here changes how your world is set
+up.
+
+### Fixed
+
+- **The lore folder's description no longer promises what the default does not
+  do.** It read *"entries a player cannot open are never used to answer that
+  player"* — which is true only under the two per-player settings, and has not
+  been true of the default since 1.1.0. Four lines below it, the panel correctly
+  said the opposite. The description now points at the setting that decides,
+  rather than making a promise on its behalf.
+- **You are told when the wide default is quoting pages your players cannot
+  open.** The warning about the lore folder only ever asked whether a player
+  could *edit* something in it. A perfectly locked-down folder therefore got
+  silence, while every answer was free to quote it. You are now told once how
+  many pages that is, and where to change it. Nothing about it is a fault —
+  reading the whole folder is what the default means — but it should be a
+  decision rather than a discovery.
+- **"Read 4 of 11 notes" counted the wrong thing.** The second number was every
+  note in your folders, not the notes that matched your question — so a hundred
+  notes with three matches said *"Read 3 of 100 notes, the rest did not fit"*
+  and invited you to prune a folder that was fine. It now counts what matched,
+  and being too long to read in full is reported separately from not fitting at
+  all, because those have different answers.
+- **A player cannot run up your Gemini bill.** Questions are capped in length,
+  and each person may have one question in the air at a time. A real table never
+  meets either — nobody asks again before the answer arrives — but a script
+  cannot get past them. A spending cap in the Google console is still the only
+  hard limit, and the security notes say so.
+- **A private answer is never posted publicly first.** When answers go to the
+  whole table but the archivist drew on notes not everyone can open, the answer
+  arrives as a private message from the moment it exists, rather than a public
+  one being narrowed afterwards. The table still sees that a question was
+  answered.
+- **A question can no longer vanish in silence.** If another module blocks the
+  archivist's chat card, you now get a short failure with a code instead of the
+  question sitting in the log with nothing ever coming back.
+- **Losing your internet says so.** A Lite answer that could not reach Google
+  used to show the browser's own wording — *"Failed to fetch"* — which sends you
+  to check a Foundry connection that is visibly working. It now says what
+  happened, and says something different when Google simply took too long.
+- **A page name can no longer impersonate the archivist's own instructions**, and
+  a written answer can no longer make Foundry render links or dice rolls that
+  nothing in your notes asked for.
+- **Two folders with your lore folder's name** are reported instead of silently
+  picking one, which used to present as "it is not reading my notes".
+- **The model you picked is protected from a second GM's open settings panel.**
+  1.1.0 fixed this for the GM doing the picking; a second GM with the panel open
+  on another machine could still put the old model back.
+- **Smaller things.** An emoji at the edge of a quoted passage is no longer cut
+  in half; a screen that fails to open says so instead of doing nothing; an
+  error shown to the table no longer carries your Vault address.
+
+### Upgrading
+
+Nothing to do, and nothing changes about how your world answers. If you have
+edited `liteScope` by hand to a value that is not one of the three offered, Tusk
+now reads only what the whole table can open rather than everything — an
+unreadable setting is a reason to show less, not more.
+
+---
+
 ## 1.1.0
 
 **Update if you let players ask questions.** This release fixes a case where a

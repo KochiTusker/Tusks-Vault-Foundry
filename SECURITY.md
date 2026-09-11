@@ -216,10 +216,19 @@ instructions to the model.
 question is answered from everything in it whoever asked, so a note a player can
 edit sits in a prompt beside lore they cannot read, and can ask for it.
 
-**What it costs you under per-player scoping.** Very little, and this is worth
+**What it costs you under *per-player* scoping.** Very little, and this is worth
 being precise about. The corpus assembled for a player then contains only
 material that player could already open, so a planted note can influence answers
 to its own author, drawn from their own notes. There is nothing there to steal.
+
+**What it costs you under *what every player can open*.** More than the sentence
+above used to admit. That mode is scoping, but it is not per-player: one corpus
+is built from what the whole table shares, and it is used for **everyone's**
+questions. A page every player can read is exactly the kind a player is likely
+to have been granted ownership of — so a note planted there reaches every
+asker's answer, not just its author's. Containment by construction is a property
+of the per-player mode alone. The module warns about an editable page under this
+mode too, which until 1.1.1 it did not.
 
 **What shrinks it.** Keep notes players can edit **out of the lore folder** —
 the module warns you when it finds one in there, naming how many. Or switch
@@ -232,6 +241,33 @@ answer is escaped once before it reaches the chat log, and only tags the module
 itself adds are ever present. And a citation naming a document that was not in
 the prompt is rendered as unverified rather than as a source, so an invented
 reference does not look like a real one.
+
+### A player at your table spends your Gemini key
+
+**How it happens.** Lite answers are paid for by whoever set the key, and asked
+for by whoever may ask. A player types a question, the active GM's browser
+assembles the lore and calls Google with the GM's own key. That is the right
+shape — the key never leaves the one browser holding it — but it does mean the
+person asking and the person paying are not the same person. Someone doing it on
+purpose does not even have to type: a message carries the question as a field,
+and a browser console can create messages in a loop.
+
+**What it costs you.** Money, and your table's answers for the rest of the
+session once the quota is gone. Not your notes: this spends the key, it does not
+read anything the asker could not already ask for.
+
+**What shrinks it.** The module now bounds it. A question is capped in length,
+and each person may have exactly one question in the air at a time — nobody can
+ask a second before the first comes back, so a burst of five hundred messages
+produces one request and four hundred and ninety-nine refusals. What remains is
+bounded by how long Google takes to answer rather than by how fast somebody can
+type, and every question is a visible chat message.
+
+**What the module cannot do.** Set a spending limit in money. It cannot see
+prices, and a cap it could not enforce honestly would be worse than none. **Set
+a budget cap in the Google Cloud console** — that is the backstop, and it is the
+only hard limit that exists. *Who may ask* is the other lever: a table that has
+had trouble can move it off **Everyone**.
 
 ### The model says something wrong, and it looks sourced
 

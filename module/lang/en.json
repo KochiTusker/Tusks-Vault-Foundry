@@ -51,7 +51,7 @@
       },
       "liteFolder": {
         "name": "Lore folder",
-        "hint": "Lite mode reads the journal entries in this folder, and nothing else. Each entry is one source, cited by its name. Entries a player cannot open are never used to answer that player."
+        "hint": "Lite mode reads the journal pages in this folder and its subfolders, and nothing else. Each page is one source, cited by its own name. Which pages may be used to answer whom is decided by “Lite: what each answer may draw on”, below."
       },
       "liteAnswers": {
         "name": "Lite: write answers, not just find passages",
@@ -297,6 +297,8 @@
       "pairDeclined": "Pairing was not approved.",
       "paired": "Paired with Tusk's Vault. Try asking something in chat.",
       "askSomething": "Ask a question — for example, /{command} who runs the harbour?",
+      "dialogFailed": "That screen could not be opened. Reload Foundry, and if it keeps happening use Copy diagnostics on the About screen when reporting it.",
+      "modelMovedOnce": "Google no longer offers {from}, so Tusk used {to} for this answer. The saved setting could not be updated — change it under Module Settings to make it stick.",
       "noActiveGM": "No GM is connected, so there is nobody to reach the archive. Ask again once a GM is online.",
       "needsPairing": "Tusk's Vault is not paired yet. Open the Settings sidebar → Game Settings → Module Settings → Tusk's Vault → Connect.",
       "connectFailed": "Could not reach Tusk's Vault. {detail}",
@@ -314,6 +316,7 @@
       "modelListFailed": "Could not list models: {detail}",
       "noAllowedModels": "None of the {count} models your key can reach are flash or flash-lite version 3 or above. Set the model by hand, or check your Google project.",
       "liteKeyMissingHere": "Lite answers are on for this world, but this browser has no Gemini key — so questions are being searched, not answered. The key is stored per browser: set it here under Module Settings, or ask whichever GM has it to be the one online.",
+      "scopeUnreadable": "Tusk's Vault: answers read your whole lore folder whoever asks, so {count} page(s) your players cannot open in Foundry may still be quoted to them. That is what “Everything in the lore folders” means, not a fault — but if you would rather Tusk followed the permissions you already set, switch “what each answer may draw on” to one of the other two.",
       "scopeWideOpen": "Tusk's Vault: answers read your whole lore folder whoever asks, and {count} entrie(s) in it can be edited by a player. Text in the folder goes into the prompt, so a note a player writes sits beside lore they cannot read. Move those entries out, or switch “what each answer may draw on” to a per-player setting.",
       "setupLiteMade": "Lite is on, and a journal folder called “{folder}” has been created. Put some notes in it, then type /{command} followed by a question.",
       "setupLiteReady": "Lite is on, reading the journal folder “{folder}”. Type /{command} followed by a question.",
@@ -332,6 +335,9 @@
       "notConnectedAsker": "The archive is not connected yet — your GM needs to finish setting up Tusk's Vault.",
       "unreachable": "Tusk's Vault is not answering at {address}. Check it is running on the GM's machine.",
       "timedOut": "Tusk's Vault did not answer in time.",
+      "askBusy": "Tusk is still working on your last question. Wait for that answer before asking another.",
+      "askQueue": "Tusk is already answering several questions. Try again in a moment.",
+      "narrowedPublicly": "Answered privately — this one draws on notes not everyone can open.",
       "answeredPrivately": "Answered privately rather than to the table: this draws on notes not everyone can open."
     },
     "lite": {
@@ -345,7 +351,10 @@
       "footerNoKey": "Written answers are switched on for this table, but the GM answering has no Gemini key saved in their browser — a key is stored per browser, not in the world.",
       "footerLink": "Get Tusk's Vault",
       "footerRepo": "Source",
-      "corpusCapped": "Read {included} of {total} notes — the rest did not fit into one question."
+      "timedOut": "Google did not answer in time. The question may be too large, or the connection slow — try again, or ask something narrower.",
+      "offline": "Could not reach Google from this browser. Check this computer's internet connection; Foundry itself is fine, or you would not be reading this.",
+      "corpusDropped": "Read {included} of {considered} matching notes — the rest did not fit into one question.",
+      "corpusTruncated": "One long note did not fit in full, so only the passage around your question was read."
     },
     "sections": {
       "mode": "Which archivist answers",

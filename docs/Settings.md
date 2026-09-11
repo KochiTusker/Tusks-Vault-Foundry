@@ -127,6 +127,18 @@ folder whoever asks. The [experimental per-player
 mode](#the-experimental-per-player-mode) is what closes it: a page a player
 cannot open is never used to answer them.
 
+On the default scope, Tusk tells you the size of that trade-off rather than
+leaving you to guess: if your lore folders hold pages your players cannot open,
+you are told once how many, and where to change it if you would rather Tusk
+followed the permissions you already set.
+
+**Ownership is read per page, which can be more generous than the sidebar.** A
+page shared with a player inside an entry they cannot open is answerable — that
+is the point, and it is how a player's own backstory can live inside your
+campaign bible. It also means Tusk can quote a page the player has no way to
+reach by clicking through Foundry. *Lite: review lore permissions* lists exactly
+this, page by page.
+
 ## Renaming the command
 
 **Chat command** and **Archivist name** both change how you ask. `/tusk` becomes

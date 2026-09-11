@@ -64,7 +64,11 @@ describe("module source", () => {
   /** One registration block, by setting key. Slicing between two key names
    *  breaks the moment a setting is added between them — which it did. */
   function registration(key) {
-    const at = script.indexOf(`register(MODULE_ID, "${key}", {`);
+    // Registrations go through a local `register(key, definition)` wrapper that
+    // adds the cross-client form sync, so the literal `game.settings.register`
+    // no longer carries the key. Matching the wrapper keeps this assertion able
+    // to fail, which is the only thing it is for.
+    const at = script.indexOf(`register("${key}", {`);
     expect(at, `no registration for "${key}"`).toBeGreaterThan(-1);
     const end = script.indexOf("\n  });", at);
     return script.slice(at, end);
@@ -88,7 +92,7 @@ describe("module source", () => {
   it("registers no credential this test does not know about", () => {
     // A future secret added in world scope would pass every test above by
     // simply not being listed in one. This fails instead.
-    const suspicious = [...script.matchAll(/register\(MODULE_ID, "([A-Za-z]*(?:[Kk]ey|[Tt]oken|[Ss]ecret|[Pp]assword))"/g)]
+    const suspicious = [...script.matchAll(/(?:^|[^A-Za-z.])register\("([A-Za-z]*(?:[Kk]ey|[Tt]oken|[Ss]ecret|[Pp]assword))"/g)]
       .map(m => m[1]);
     expect(new Set(suspicious)).toEqual(new Set(["bridgeToken", "geminiKey"]));
   });
@@ -390,7 +394,7 @@ describe("the security and privacy pages keep up with the code", () => {
     // A secret added without a line in SECURITY.md is a secret nobody was told
     // about. The same list also drives the client-scope assertions above, so
     // adding one means answering both questions.
-    const secrets = [...script.matchAll(/register\(MODULE_ID, "([A-Za-z]*(?:[Kk]ey|[Tt]oken|[Ss]ecret|[Pp]assword))"/g)]
+    const secrets = [...script.matchAll(/(?:^|[^A-Za-z.])register\("([A-Za-z]*(?:[Kk]ey|[Tt]oken|[Ss]ecret|[Pp]assword))"/g)]
       .map(m => m[1]);
     expect(secrets.length).toBeGreaterThan(1);
     for (const name of new Set(secrets)) expect(security, name).toContain(name);

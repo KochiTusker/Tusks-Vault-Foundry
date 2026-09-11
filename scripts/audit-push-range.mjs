@@ -95,6 +95,29 @@ if (PUBLIC_BOUND) {
   warnings.push(...ffFindings.filter(f => f.warning));
 }
 
+// THE LAST GATE MUST NOT BE ABLE TO PASS WHILE BLIND.
+//
+// When the gitleaks binary is absent the ~150-rule second layer silently does
+// not run, and this script printed two lines to stderr and exited 0 — on the
+// PUBLIC path as well, where those two lines scroll past inside a much longer
+// release log. A maintainer on a fresh clone, or in a linked worktree with no
+// `.bin/`, would push to the public remote with the layer that catches
+// everything the eleven in-tree regexes miss having never executed.
+//
+// `.private-names` already implements exactly the right asymmetry, for exactly
+// the right stated reason — "an unverifiable state must never read as clean".
+// This is that rule, applied to the other optional layer. Dev pushes, tree
+// audits and CI keep the warn-and-continue: CI's decision not to install
+// gitleaks is deliberate and documented, and a dev push is not the last gate.
+if (PUBLIC_BOUND && !gitleaksRan) {
+  blocking.push({
+    layer: "gitleaks",
+    file: "",
+    commit: "",
+    detail: "gitleaks did not run (binary not found at .bin/ or on PATH), so the second-layer scan is unverified. Install gitleaks 8.30.1 before pushing to the public remote.",
+  });
+}
+
 blocking = dedupeFindings(blocking);
 warnings = dedupeFindings(warnings);
 
