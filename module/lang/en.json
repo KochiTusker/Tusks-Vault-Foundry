@@ -79,6 +79,33 @@
         "name": "The full version",
         "label": "Why move up to Tusk's Vault",
         "hint": "A side-by-side of what lite does and what the full application does. Tusk's Vault is free."
+      },
+      "liteScope": {
+        "name": "Lite: what each answer may draw on",
+        "hint": "By default Tusk reads everything in your lore folders, whoever is asking — what you put in the folder is what it may say. The other two read Foundry's journal ownership instead, which only works if you keep those permissions up to date.",
+        "all": "Everything in the lore folders (default)",
+        "shared": "Only what every player can open",
+        "asker": "Only what the person asking can open — experimental"
+      },
+      "about": {
+        "name": "About Tusk's Vault",
+        "label": "About, and getting help",
+        "hint": "Version, links, a diagnostics report you can paste into a bug report, and how to support the project."
+      },
+      "lorePermissions": {
+        "name": "Lite: review lore permissions",
+        "label": "Check who can read what",
+        "hint": "Lists every page in your lore folder and who at the table can be answered from it. Useful before you let players add their own notes."
+      },
+      "liteFolders": {
+        "name": "Lite: also read these folders",
+        "label": "Pick journal folders",
+        "hint": "Read the journal folders you already have, instead of moving your notes into a new one."
+      },
+      "faq": {
+        "name": "Common questions",
+        "label": "Open the FAQ",
+        "hint": "The questions people actually ask, each with a link to the answer in full."
       }
     },
     "roles": {
@@ -187,6 +214,74 @@
         "tomes": "Tusk's Tomes — turn recordings into lore",
         "loopHead": "Where the lore comes from in the first place.",
         "loopBody": "Record your session and Tusk's Tomes turns the recording into a written chronicle and a session log. Those land in the same folder Tusk's Vault reads, so by the next session the archive can already answer questions about what just happened — without you writing a word of it up. Tomes writes the history, Vault remembers it, and the table asks it questions."
+      },
+      "about": {
+        "title": "About Tusk's Vault",
+        "blurb": "Ask your campaign's own lore from the chat bar, and get an answer cited to the note it came from.",
+        "module": "Module",
+        "foundry": "Foundry",
+        "mode": "Answering from",
+        "modeLite": "Lite — journal entries in this world",
+        "modeBridge": "Tusk's Vault",
+        "helpHead": "If something is not working",
+        "helpBody": "Copy the diagnostics report and paste it into your bug report. It records shapes, never values — no question text, no answer text, no key, no world name.",
+        "copy": "Copy diagnostics",
+        "copied": "Diagnostics copied to the clipboard.",
+        "copyFailed": "Could not reach the clipboard. Press F12 and run TusksVault.diagnostics() instead.",
+        "linksHead": "Links",
+        "guide": "Guide and setup",
+        "issues": "Report a problem",
+        "source": "Source on GitHub",
+        "licence": "MIT licence",
+        "supportHead": "Supporting this",
+        "supportBody": "Tusk's Vault is free, open source, and stays that way. If it has saved you some prep time, you are welcome to put something in the tip jar — but please do not feel you need to.",
+        "supportLink": "Buy me a coffee",
+        "close": "Close"
+      },
+      "perms": {
+        "title": "Who can be answered from what",
+        "body": "Every page in {folder}, and which players Lite may use it to answer. This is Foundry's own journal ownership — change it on the entry or the page, not here.",
+        "empty": "No readable pages found in {folder}. Make the folder in the Journals sidebar and put notes in it, or point the lore folder setting somewhere else.",
+        "colPage": "Page",
+        "colWho": "Answers",
+        "everyone": "Everyone",
+        "gmOnly": "You only",
+        "some": "{count} of {total} players",
+        "scopeNote": "Current scope: {scope}",
+        "writable": "{count} player(s) can create journal entries, so notes may appear here that you did not write.",
+        "close": "Close"
+      },
+      "setup": {
+        "title": "Tusk's Vault — pick how it answers",
+        "body": "Tusk answers questions about your campaign from your own notes, in chat. There are two ways to run it, and you can change your mind at any time in Module Settings.",
+        "liteHead": "Lite — nothing else to install",
+        "liteBody": "Answers from journal entries in a folder called “{folder}” in this world. No account, no API key, no network request. Best place to start: put some notes in the folder and ask a question.",
+        "bridgeHead": "Tusk's Vault — the full application",
+        "bridgeBody": "Answers from the notes you already keep on your computer — Word, PDF, Markdown, a whole Obsidian vault — on whichever model you like, with your API key kept out of the browser. It is free, but it is a separate download you run yourself.",
+        "either": "Not sure? Start with Lite. Moving up later costs nothing but a download, and this module keeps working — you switch it at the top of the module settings.",
+        "chooseLite": "Start with Lite",
+        "chooseBridge": "I have Tusk's Vault — connect",
+        "later": "Decide later"
+      },
+      "folders": {
+        "title": "Which journal folders should Tusk read?",
+        "body": "Tick any folders you already keep notes in. Tusk reads them alongside your lore folder, including anything nested inside them — so you do not have to move or retype anything.",
+        "primary": "Always read: “{folder}”, plus everything nested inside it.",
+        "noPrimary": "Your lore folder “{folder}” does not exist yet. Anything you tick here is read on its own.",
+        "count": "{count} entries",
+        "none": "There are no other journal folders in this world yet.",
+        "note": "Journal permissions still apply. Ticking a folder does not show anyone anything they could not already open.",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "faq": {
+        "title": "Tusk's Vault — common questions",
+        "body": "The things people ask most. Open one for the short answer, or follow the link for the whole story.",
+        "more": "Read more",
+        "footer": "Still stuck? The troubleshooting page lists every error code and what fixes it — and the About screen has a diagnostics report you can paste into a bug report.",
+        "allDocs": "Troubleshooting",
+        "issues": "Report a problem",
+        "close": "Close"
       }
     },
     "notify": {
@@ -218,7 +313,12 @@
       "modelChosen": "Lite will use {model}.",
       "modelListFailed": "Could not list models: {detail}",
       "noAllowedModels": "None of the {count} models your key can reach are flash or flash-lite version 3 or above. Set the model by hand, or check your Google project.",
-      "liteKeyMissingHere": "Lite answers are on for this world, but this browser has no Gemini key — so questions are being searched, not answered. The key is stored per browser: set it here under Module Settings, or ask whichever GM has it to be the one online."
+      "liteKeyMissingHere": "Lite answers are on for this world, but this browser has no Gemini key — so questions are being searched, not answered. The key is stored per browser: set it here under Module Settings, or ask whichever GM has it to be the one online.",
+      "scopeWideOpen": "Tusk's Vault: answers read your whole lore folder whoever asks, and {count} entrie(s) in it can be edited by a player. Text in the folder goes into the prompt, so a note a player writes sits beside lore they cannot read. Move those entries out, or switch “what each answer may draw on” to a per-player setting.",
+      "setupLiteMade": "Lite is on, and a journal folder called “{folder}” has been created. Put some notes in it, then type /{command} followed by a question.",
+      "setupLiteReady": "Lite is on, reading the journal folder “{folder}”. Type /{command} followed by a question.",
+      "foldersSaved": "Tusk now also reads {count} extra journal folder(s).",
+      "scopePreserved": "Tusk's Vault 1.1.0 adds a setting for what each answer may draw on. This world has been left on the behaviour it already had — each person answered only from journal pages they can open. New worlds read the whole lore folder instead. Change it under Module Settings if you would rather."
     },
     "chat": {
       "hintRepair": "If you have started opening Foundry on a different address — a LAN IP instead of localhost, or https instead of http — the pairing was tied to the old one. Open the module settings and use “Connect to Tusk's Vault” to pair again.",
@@ -231,7 +331,8 @@
       "failed": "Could not reach the archive.",
       "notConnectedAsker": "The archive is not connected yet — your GM needs to finish setting up Tusk's Vault.",
       "unreachable": "Tusk's Vault is not answering at {address}. Check it is running on the GM's machine.",
-      "timedOut": "Tusk's Vault did not answer in time."
+      "timedOut": "Tusk's Vault did not answer in time.",
+      "answeredPrivately": "Answered privately rather than to the table: this draws on notes not everyone can open."
     },
     "lite": {
       "searchHeader": "Found {count} passage(s) in your lore:",
@@ -243,13 +344,65 @@
       "footer": "That is lite mode quoting your notes. Tusk's Vault reads everything you keep, answers in prose and cites it, and is free.",
       "footerNoKey": "Written answers are switched on for this table, but the GM answering has no Gemini key saved in their browser — a key is stored per browser, not in the world.",
       "footerLink": "Get Tusk's Vault",
-      "footerRepo": "Source"
+      "footerRepo": "Source",
+      "corpusCapped": "Read {included} of {total} notes — the rest did not fit into one question."
     },
     "sections": {
       "mode": "Which archivist answers",
       "bridge": "Tusk's Vault — the full experience",
       "lite": "Lite — journals only, inside Foundry",
-      "table": "This table"
+      "table": "This table",
+      "help": "Help and about"
+    },
+    "faq": {
+      "notCommand": {
+        "q": "Foundry says /tusk is not a valid command",
+        "a": "Either the module is not switched on for this world, or the command has been renamed. Check Settings → Module Management, then Chat command in this module's settings."
+      },
+      "nothing": {
+        "q": "I ask a question and nothing comes back",
+        "a": "Questions are answered by the GM's browser, so a GM has to be logged in. If you are the GM and it is still silent, open About and copy the diagnostics report."
+      },
+      "noMatches": {
+        "q": "It says it cannot find anything, but I know the note is there",
+        "a": "Without an API key Tusk matches the words you typed, letter for letter — it has no notion of what they mean. “harbours” will not find “harbour”, and “wharf” or “quayside” will not find “harbour master”. Ask using the words your notes actually use. Also check the note is in a folder Tusk reads."
+      },
+      "otherFolder": {
+        "q": "My notes are already in other folders. Do I have to move them?",
+        "a": "No. Use “Lite: also read these folders” and tick the folders you already keep notes in. Nothing moves and nothing is copied."
+      },
+      "players": {
+        "q": "Do my players need to install anything?",
+        "a": "No. Players install nothing and set nothing up. They type a question in chat like anyone else."
+      },
+      "key": {
+        "q": "Do I need an API key?",
+        "a": "Not to use it. Without a key Tusk quotes the matching passages back at you, cited. A free Gemini key turns those into written answers instead."
+      },
+      "keySafe": {
+        "q": "Can my players see my API key?",
+        "a": "No. It is stored in your browser only, never in the world, and never sent to the Foundry server. Other Foundry modules you install can read it, though — Foundry does not sandbox modules — so use a key made for this and set a spending cap."
+      },
+      "spoilers": {
+        "q": "Will Tusk spoil things my players should not know?",
+        "a": "It answers from everything in your lore folders, whoever asks — so the folder is the boundary: do not put a secret in it you would not want surfaced. You can also restrict who may ask at all, or have answers whispered to you first. If you keep Foundry's journal permissions up to date, there is an experimental setting that reads them per player instead."
+      },
+      "playerNotes": {
+        "q": "Can my players add their own lore, like backstories?",
+        "a": "Yes, if you let them create journal entries. Note that by default every answer reads the whole folder, so what one player writes can be used to answer another. The experimental per-player setting is what keeps a backstory private to its author."
+      },
+      "hosted": {
+        "q": "I run Foundry on The Forge or another host. Does this work?",
+        "a": "Yes, both halves. Lite does not care where Foundry lives, and the full Vault runs on the computer you play from rather than on the server."
+      },
+      "cost": {
+        "q": "What does this cost?",
+        "a": "Nothing to install and nothing to use without a key. If you add a Gemini key, Google's free tier is enough to try it, and you set your own spending cap."
+      },
+      "difference": {
+        "q": "What is the difference between this and the full Tusk's Vault?",
+        "a": "This reads journal entries inside Foundry. The full version is a free app you run yourself that reads the notes you already keep — Word, PDF, Markdown, a whole Obsidian vault — on whichever model you like, with your key kept out of the browser."
+      }
     }
   }
 }

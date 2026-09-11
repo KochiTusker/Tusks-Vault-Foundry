@@ -150,7 +150,51 @@ and Modules page.
 A person reviews it, usually within a few days, and then grants access to the
 package's admin pages.
 
-### Every release after that
+### Every release after that — nothing
+
+**There is no per-release step on foundryvtt.com, and adding one would break
+what is there.** Read this before reaching for the Release API.
+
+The registry holds ONE entry for this package. Its own version number is
+Foundry-side and deliberately independent of the GitHub tags — it reads `1.0.0`
+and is not expected to track `foundry-v<version>` — and its **Manifest URL is
+the `latest` alias**:
+
+```
+https://github.com/KochiTusker/Tusks-Vault-Foundry/releases/latest/download/module.json
+```
+
+So the registry does not record versions; it records where to always find the
+newest one. Publishing a GitHub Release is therefore the whole job: the package
+browser hands new installers that alias, it resolves to the release GitHub calls
+latest, and existing installs follow the same URL on their next update check.
+Cutting `foundry-v1.0.3` made 1.0.3 installable and updatable within seconds,
+with no token and no submission.
+
+Two consequences worth having straight:
+
+- **`foundry-v1.0.0` does not exist as a GitHub release, and does not need to.**
+  The registry's `1.0.0` is a label on its own record, not a tag reference.
+  Seeing that number next to a repository whose newest tag is higher is the
+  expected state, not drift.
+- **Nothing else may ever be published from this repository.** That rule appears
+  above for the `manifest` field's sake; here it is load-bearing twice over,
+  because the registry itself now depends on `releases/latest` resolving to a
+  module release.
+
+What this arrangement gives up, so a future change is a decision rather than a
+discovery: the registry cannot show which version is current, and it will not
+learn about a change to `compatibility`. Raise `minimum` in `module.json` and
+the package browser goes on advertising the old floor — the manifest is right
+and the listing is stale. If that ever matters, the alternative is below, and
+adopting it means every release needs a submission from then on.
+
+The package browser's **description is a separate field**, edited on the admin
+page and not read from `module.json`. The two can disagree without anything
+complaining, so changing one is not changing the other.
+
+<details>
+<summary>The version-pinned alternative — only if the trade-off above stops being acceptable</summary>
 
 Either the package admin page, or the
 [Package Release API](https://foundryvtt.com/article/package-release-api/):
@@ -163,9 +207,9 @@ Authorization: <the fvttp_… release token from the package's admin page>
   "id": "tusks-vault",
   "dry-run": true,
   "release": {
-    "version": "1.0.0",
-    "manifest": "https://github.com/KochiTusker/Tusks-Vault-Foundry/releases/download/foundry-v1.0.0/module.json",
-    "notes": "https://github.com/KochiTusker/Tusks-Vault-Foundry/releases/tag/foundry-v1.0.0",
+    "version": "1.0.3",
+    "manifest": "https://github.com/KochiTusker/Tusks-Vault-Foundry/releases/download/foundry-v1.0.3/module.json",
+    "notes": "https://github.com/KochiTusker/Tusks-Vault-Foundry/releases/tag/foundry-v1.0.3",
     "compatibility": { "minimum": "13", "verified": "14" }
   }
 }
@@ -173,12 +217,17 @@ Authorization: <the fvttp_… release token from the package's admin page>
 
 **The `manifest` in that payload is the version-pinned one**, not the `latest`
 alias — the opposite of the rule for the `manifest` field *inside* the file. The
-registry is recording where this specific version can always be fetched from;
-the file is telling an installed copy where to look for the next one. Getting
+registry would be recording where this specific version can always be fetched
+from; the file tells an installed copy where to look for the next one. Getting
 these the wrong way round is the classic mistake, which is why the tag-specific
-`module.json` is attached to the release at all.
+`module.json` is attached to every release regardless.
 
-Run it once with `"dry-run": true` first. A version can only be released once.
+Run it once with `"dry-run": true`. A version can only be released once — and
+switching to this model is close to one-way: from then on a release that skips
+the submission is a release nobody receives, which is exactly the failure the
+current arrangement cannot have.
+
+</details>
 
 ## Before the first submission
 

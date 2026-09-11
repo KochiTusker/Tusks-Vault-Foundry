@@ -21,11 +21,16 @@ what Vault does with your documents — is a **Vault** setting, and lives on
 | **Chat command** | World | Defaults to `/tusk`. |
 | **Archivist name** | World | The name answers post under, and the `@mention` that also asks. |
 | **Vault address** | Per browser | Leave blank to find Vault automatically. |
-| **Lite: lore folder** | World | Which journal folder Lite reads. Defaults to *Tusk's Lore*. |
+| **Lite: lore folder** | World | Which journal folder Lite reads, and everything nested inside it. Defaults to *Tusk's Lore*. |
+| **Lite: also read these folders** | World | Tick journal folders you already keep notes in. Nothing moves, nothing is copied. |
+| **Lite: what each answer may draw on** | World | Everything in the folders (default), or Foundry's journal ownership. [See below.](#what-each-answer-may-draw-on) |
+| **Lite: review lore permissions** | — | Lists every page in the folder and who can be answered from it. |
 | **Lite: write answers** | World | Prose answers instead of quoted passages. Needs a key. |
 | **Lite: model** | World | Which Gemini model writes them. |
 | **Lite: apply Google's content filters** | World | Off by default. [Why.](Lite.md#content-filters-are-off-by-default) |
 | **Gemini key** | Per browser | Never stored in the world. [What that means.](Lite.md#what-a-key-in-the-browser-means) |
+| **Common questions** | — | A FAQ, each answer linking to the page that covers it in full. Players can open it too. |
+| **About Tusk's Vault** | — | Version, links, a diagnostics report you can copy, and how to support the project. |
 
 **World** settings are shared by everyone in the world and only a GM can change
 them. **Per browser** settings live in one person's browser and never reach the
@@ -59,6 +64,44 @@ announced to the table.
 | **The GM only** | Whispered to GMs. The asker is told their question went to you. |
 | **Everyone, in the open** | Posted to the chat log. |
 
+## What each answer may draw on
+
+| Setting | What it does |
+|---|---|
+| **Everything in the lore folders** *(default)* | One archive, one answer for everybody. The folder is the boundary: what you put in it is what Tusk may say. |
+| **Only what every player can open** | Answers only from notes the whole table can read. |
+| **Only what the person asking can open** *(experimental)* | Reads Foundry's journal ownership per person, page by page. Two players can ask the same question and get different answers. |
+
+**The default reads everything, and that is deliberate.** Foundry creates every
+journal entry with no player access at all, so an archivist that filtered by
+ownership out of the box would answer "I could not find anything" to every player
+question until you had opened the Ownership Configuration dialog for every entry.
+
+On the default, spoiler control is **what you put in the folder** and
+**[who may ask](#who-may-ask)**.
+
+### The experimental per-player mode
+
+If you keep journal permissions up to date, *Only what the person asking can
+open* reads them: each person is answered from the pages they could open
+themselves, and a player's own backstory answers them and nobody else.
+
+It is experimental because it is only as good as those permissions. An entry left
+on Foundry's default ownership answers nobody but you, which looks like a fault
+rather than a setting. **Check it with *Lite: review lore permissions*** before
+relying on it.
+
+In this mode only, an answer built from pages not everyone can read is whispered
+to the asker and the GMs rather than posted publicly, even if *Who sees the
+answer* says everyone — otherwise the two settings cancel out.
+
+> **One combination to avoid.** On the default scope, if players can edit notes
+> in your lore folder, what they write goes **into the prompt** beside lore they
+> cannot read — so somebody who can write a note can write instructions to the
+> model. The module warns you when it finds such an entry. Either move those
+> entries out of the folder, or use the per-player mode, where it is contained.
+> See [letting players add their own lore](Lite.md#letting-players-add-their-own-lore).
+
 ## The spoiler trade-off
 
 **Who sees the answer bounds visibility. It does not bound what a player can
@@ -79,9 +122,10 @@ Three ways to handle it, in increasing strictness:
    by default, and with it off, player questions are refused no matter what this
    module says.
 
-**Lite does not have this problem**, because it reads Foundry's own journal
-permissions per asker: an entry a player cannot open is never used to answer
-them. See [Lite mode](Lite.md#players-only-ever-see-what-they-could-already-read).
+**Lite shares this trade-off on its default scope**, which reads the whole
+folder whoever asks. The [experimental per-player
+mode](#the-experimental-per-player-mode) is what closes it: a page a player
+cannot open is never used to answer them.
 
 ## Renaming the command
 
@@ -117,5 +161,7 @@ correct refusal rather than a fault, and the chat message says so.
 - **[Lite mode](Lite.md)** — the half that needs nothing else installed.
 - **[Troubleshooting](Troubleshooting.md)** — when a setting does not seem to
   take.
+- **[Hosted and cloud Foundry](Hosting.md)** — The Forge, a droplet, or any
+  server you do not control.
 - **[Vault's own settings](https://kochitusker.github.io/Tusks-Vault/docs/surfaces/foundry-vtt/)** —
   the Foundry surface switch, and answering players.

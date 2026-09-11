@@ -694,3 +694,83 @@ describe("the zip a stranger installs", () => {
     expect(names.some(name => /^(README|package|test)/i.test(name))).toBe(false);
   });
 });
+
+describe("the FAQ links out of a stranger's game", () => {
+  // These are compiled into a release and opened from inside Foundry, where a
+  // broken one is a dead end with no redirect to rescue it. The FAQ is only
+  // worth having if every route out of it lands somewhere.
+  const script = fs.readFileSync(path.join(MODULE_DIR, "scripts", "tusk.js"), "utf-8");
+  const lang = JSON.parse(fs.readFileSync(path.join(MODULE_DIR, "lang", "en.json"), "utf-8"));
+  const docsLinks = fs.readFileSync(path.join(REPO_ROOT, "docs", "DocsLinks.md"), "utf-8");
+
+  /** The entries as the script declares them, read out of the source rather
+   *  than duplicated here — a copy would drift and then test itself. */
+  const entries = [...script.matchAll(/\{ id: "([^"]+)", href: `([^`]+)` \}/g)]
+    .map(([, id, href]) => ({ id, href }));
+
+  it("declares some", () => {
+    expect(entries.length).toBeGreaterThan(8);
+  });
+
+  it("gives every entry both a question and an answer", () => {
+    const missing = entries.filter(e => {
+      const row = lang.TUSKS_VAULT.faq?.[e.id];
+      return typeof row?.q !== "string" || typeof row?.a !== "string";
+    });
+    // Template-literal keys are invisible to the general localisation sweep, so
+    // without this a FAQ entry can ship rendering "TUSKS_VAULT.faq.x.q".
+    expect(missing.map(e => e.id)).toEqual([]);
+  });
+
+  it("asks questions in the words a GM would use, not in error codes", () => {
+    const shouty = entries.filter(e => /TV-[A-Z]/.test(lang.TUSKS_VAULT.faq[e.id].q));
+    expect(shouty.map(e => e.id)).toEqual([]);
+  });
+
+  it("points every repository link at a file that exists", () => {
+    const broken = [];
+    for (const { id, href } of entries) {
+      const m = /\/blob\/main\/([^#`]+)/.exec(href);
+      if (!m) continue;
+      if (!fs.existsSync(path.join(REPO_ROOT, m[1]))) broken.push(`${id} -> ${m[1]}`);
+    }
+    expect(broken).toEqual([]);
+  });
+
+  it("points every anchor at a heading that exists", () => {
+    // GitHub derives an anchor from a heading by lower-casing it, dropping
+    // anything that is not a word character, space or hyphen, and joining on
+    // hyphens. A renamed heading silently becomes a link to the top of the
+    // page, which is the kind of rot nobody notices for a year.
+    const slug = heading => heading
+      .trim()
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, "")
+      // Each space, not each RUN of spaces. Stripping an em dash from
+      // "Part one - what it needs" leaves two spaces and therefore two
+      // hyphens; collapsing here would compute an anchor GitHub never mints.
+      .replace(/ /g, "-");
+
+    const broken = [];
+    for (const { id, href } of entries) {
+      const m = /\/blob\/main\/([^#`]+)#(.+)$/.exec(href);
+      if (!m) continue;
+      const [, file, anchor] = m;
+      const text = fs.readFileSync(path.join(REPO_ROOT, file), "utf-8");
+      const anchors = [...text.matchAll(/^#{1,6}\s+(.+)$/gm)].map(([, h]) => slug(h));
+      if (!anchors.includes(anchor)) broken.push(`${id} -> ${file}#${anchor}`);
+    }
+    expect(broken).toEqual([]);
+  });
+
+  it("records every destination in DocsLinks.md", () => {
+    // The same contract the site links are held to. A link shipped into a
+    // release that nothing documents is a link nobody knows not to break.
+    const undocumented = [];
+    for (const { id, href } of entries) {
+      const file = /\/blob\/main\/([^#`]+)/.exec(href)?.[1];
+      if (file && !docsLinks.includes(file)) undocumented.push(`${id} -> ${file}`);
+    }
+    expect(undocumented).toEqual([]);
+  });
+});

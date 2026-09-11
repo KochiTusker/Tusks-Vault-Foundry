@@ -53,10 +53,37 @@ const DOCS_SITE = "https://kochitusker.github.io/Tusks-Vault/";
  *  arriving from a module in a game want different ones. */
 const VAULT_REPO = "https://github.com/KochiTusker/Tusks-Vault";
 
+/**
+ * THIS repository — which is where Lite's documentation lives, and deliberately
+ * not the documentation site.
+ *
+ * `docs/DocsLinks.md` sets the division and it is worth restating here, beside
+ * the constant that depends on it: everything about Vault belongs on the site,
+ * everything about the Foundry surface — settings, Lite, diagnostics — belongs
+ * in `docs/` next to the code it describes. The site's own Foundry page says so
+ * too, in as many words, and sends a reader here for Lite.
+ *
+ * So a help link about Lite points here. Pointing it at the site would be a
+ * second front door onto documentation the site does not have.
+ */
+const MODULE_REPO = "https://github.com/KochiTusker/Tusks-Vault-Foundry";
+
 /** The sibling project: session recordings into written chronicles, which then
  *  become lore Vault can answer from. Worth naming on the comparison because it
  *  is a reason to move up that has nothing to do with this module. */
 const TOMES_SITE = "https://kochitusker.github.io/Tusks-Tomes/";
+
+/**
+ * Where somebody who has gone looking can say thank you.
+ *
+ * Reachable from exactly one place — the About screen — and from nowhere else.
+ * Not the answer card, not a notification, not a first-run prompt. A donation
+ * link in front of somebody who has not decided they like the thing yet reads
+ * as the price of admission for something the licence says is free, and costs
+ * more goodwill than it collects. Somebody who opened "About" is already
+ * looking; they are the only audience this has.
+ */
+const SUPPORT_URL = "https://buymeacoffee.com/kochitusker";
 
 const LITE_MODEL_DEFAULT = "gemini-3.8-flash";
 
@@ -231,6 +258,7 @@ const SETTING_DEFAULTS = {
   liteAnswers: false,
   liteModel: LITE_MODEL_DEFAULT,
   liteFilters: false,
+  liteScope: "all",
   geminiKey: "",
   enabled: true,
   accessMode: "whisper", // legacy; read once at migration and then ignored
@@ -286,6 +314,11 @@ let warnedAboutSettings = false;
  */
 let warnedLiteKeyMissing = false;
 
+/** Whether the welcome screen is on screen right now. Read only by the boot
+ *  path, to keep it from telling a GM to go and pair while the dialog offering
+ *  to do exactly that is still open in front of them. */
+let firstRunOpen = false;
+
 /**
  * Read a module setting, falling back to its default if it is not registered.
  *
@@ -312,8 +345,54 @@ function setting(key) {
   }
 }
 
+/**
+ * Keep an OPEN settings form in step with a setting written from elsewhere.
+ *
+ * Foundry's settings form is a SNAPSHOT. It reads every value once, at render,
+ * and on save writes back every field it is holding —
+ * `SettingsConfig.#onSubmit` iterates the whole of `formData.object` and calls
+ * `game.settings.set` for each. So a setting changed while that form is open is
+ * not merely displayed stale: pressing **Save Module Settings** writes the old
+ * value back over the new one, silently.
+ *
+ * Which is exactly what the model picker did. A GM opened it from the settings
+ * panel, chose a model, the setting was written, the text box above still read
+ * the old name, and saving the panel they had opened the picker from undid the
+ * choice they had just made in it.
+ *
+ * The same trap catches `recoverModel`, which moves the module off a model
+ * Google has retired. That one matters more: it fires mid-session to repair a
+ * broken table, and a settings panel left open would have reverted the repair.
+ *
+ * Done in `setSetting` rather than at the two call sites so it cannot be
+ * forgotten by the next thing that writes a setting from a dialog.
+ */
+function syncOpenSettingsForm(key, value) {
+  try {
+    const fields = globalThis.document?.querySelectorAll?.(`[name="${MODULE_ID}.${key}"]`);
+    for (const field of fields ?? []) {
+      if (field.type === "checkbox") field.checked = !!value;
+      else field.value = String(value ?? "");
+      // Announced, not just assigned — the live mode switch listens for this,
+      // so writing `answerSource` reveals the right half of the panel exactly
+      // as moving the dropdown by hand does.
+      try {
+        field.dispatchEvent?.(new Event("change", { bubbles: true }));
+      } catch {
+        // No Event constructor (a non-browser host). The value is still correct.
+      }
+    }
+  } catch {
+    // No form open, or no DOM at all. Writing the setting is the part that
+    // matters; keeping a form in step is a courtesy and must never throw.
+  }
+}
+
 function setSetting(key, value) {
-  return game.settings.set(MODULE_ID, key, value);
+  return Promise.resolve(game.settings.set(MODULE_ID, key, value)).then(written => {
+    syncOpenSettingsForm(key, value);
+    return written;
+  });
 }
 
 // ─── Settings ────────────────────────────────────────────────────────────────
@@ -420,6 +499,46 @@ function registerSettings() {
   });
 
   /**
+   * What each answer may be assembled from.
+   *
+   * A THREE-WAY CHOICE rather than a switch, because "off" here has no obvious
+   * meaning — off to everything in the folder, or off to what the table shares?
+   * Those are opposite answers to the spoiler question, and a boolean would
+   * pick one silently.
+   *
+   * `all` IS THE DEFAULT, AND THE REASON IS A FOUNDRY DEFAULT RATHER THAN A
+   * PREFERENCE. `DocumentOwnershipField` initialises to `{default: NONE}`, so a
+   * journal entry a GM creates is invisible to players until somebody opens the
+   * ownership dialog and changes it — per entry. Scoping by ownership out of the
+   * box therefore does not produce careful per-player answers; it produces "I
+   * could not find anything" for every player question in every world where the
+   * GM has not done that work, which is most of them. The folder is the boundary
+   * a GM actually maintains: what you put in it is what the archivist may say.
+   *
+   * `asker` is the interesting mode and is offered as OPT-IN and EXPERIMENTAL.
+   * When a GM does maintain per-user ownership — the Ownership Configuration
+   * dialog, a level per player — this reads it, and two people asking the same
+   * question are answered from different notes. It is the one thing this half
+   * does that the full application structurally cannot, and it is also the one
+   * that silently answers nothing if the permissions underneath it are not set
+   * up. Hence opt-in.
+   */
+  game.settings.register(MODULE_ID, "liteScope", {
+    name: t("settings.liteScope.name"),
+    hint: t("settings.liteScope.hint"),
+    scope: "world",
+    config: true,
+    type: String,
+    default: "all",
+    choices: {
+      all: t("settings.liteScope.all"),
+      shared: t("settings.liteScope.shared"),
+      asker: t("settings.liteScope.asker"),
+    },
+    onChange: () => void warnIfScopeIsWideOpen(),
+  });
+
+  /**
    * The Gemini key. CLIENT scope and never in the settings form — the same two
    * rules the bridge token follows, for the same reason: a world setting is
    * distributed to every connected client, so a key stored there is a key
@@ -465,6 +584,30 @@ function registerSettings() {
     config: false,
     type: Boolean,
     default: false,
+  });
+
+  /** Whether the first-run choice has been made or declined. Written either
+   *  way, so declining is a decision the module remembers rather than a
+   *  question it asks again every time the GM logs in. */
+  game.settings.register(MODULE_ID, "setupDone", {
+    scope: "world",
+    config: false,
+    type: Boolean,
+    default: false,
+  });
+
+  /**
+   * Journal folders to read besides the named lore folder.
+   *
+   * Folder ids rather than names, because a folder can be renamed and two
+   * folders can share a name — and because the GM picks these from a list, so
+   * nobody ever has to see or type an id.
+   */
+  game.settings.register(MODULE_ID, "liteExtraFolders", {
+    scope: "world",
+    config: false,
+    type: Array,
+    default: [],
   });
 
   /**
@@ -589,6 +732,24 @@ function registerSettings() {
     restricted: true,
   });
 
+  game.settings.registerMenu(MODULE_ID, "liteFolders", {
+    name: t("settings.liteFolders.name"),
+    label: t("settings.liteFolders.label"),
+    hint: t("settings.liteFolders.hint"),
+    icon: "fas fa-folder-tree",
+    type: menuShim(openFolderPicker),
+    restricted: true,
+  });
+
+  game.settings.registerMenu(MODULE_ID, "lorePermissions", {
+    name: t("settings.lorePermissions.name"),
+    label: t("settings.lorePermissions.label"),
+    hint: t("settings.lorePermissions.hint"),
+    icon: "fas fa-user-lock",
+    type: menuShim(openLorePermissions),
+    restricted: true,
+  });
+
   game.settings.registerMenu(MODULE_ID, "connect", {
     name: t("settings.connect.name"),
     label: t("settings.connect.label"),
@@ -596,6 +757,30 @@ function registerSettings() {
     icon: "fas fa-link",
     type: menuShim(runPairing),
     restricted: true,
+  });
+
+  game.settings.registerMenu(MODULE_ID, "faq", {
+    name: t("settings.faq.name"),
+    label: t("settings.faq.label"),
+    hint: t("settings.faq.hint"),
+    icon: "fas fa-circle-question",
+    // Unrestricted. The person hitting the problem is often a player, and a
+    // help screen only a GM can open is a help screen the table cannot use.
+    restricted: false,
+    type: menuShim(openFaq),
+  });
+
+  game.settings.registerMenu(MODULE_ID, "about", {
+    name: t("settings.about.name"),
+    label: t("settings.about.label"),
+    hint: t("settings.about.hint"),
+    icon: "fas fa-circle-info",
+    // Not restricted, for the same reason the upgrade screen is not: a player
+    // who can open settings can already read what the table is running, and the
+    // diagnostics button is the fastest route to a useful bug report from
+    // whoever happens to be the one seeing the problem.
+    restricted: false,
+    type: menuShim(openAbout),
   });
 
 }
@@ -632,6 +817,9 @@ const SETTINGS_LAYOUT = [
     keys: [
       "menu:liteKey",
       "liteFolder",
+      "menu:liteFolders",
+      "liteScope",
+      "menu:lorePermissions",
       "liteAnswers",
       "liteFilters",
       "liteModel",
@@ -643,6 +831,9 @@ const SETTINGS_LAYOUT = [
     heading: "sections.table",
     keys: ["enabled", "askPolicy", "menu:allowedUsers", "replyVisibility", "triggerCommand", "botName"],
   },
+  // Last, and in both halves. Somebody who has scrolled this far is either
+  // finished configuring or looking for help, and both are what is here.
+  { heading: "sections.help", keys: ["menu:faq", "menu:about"] },
 ];
 
 /**
@@ -1172,6 +1363,441 @@ async function openWhyUpgrade() {
       <p class="notes">${escapeHtml(t("dialog.why.note"))}</p>
     </div>`,
     buttons: [{ action: "close", label: t("dialog.why.close"), default: true }],
+  });
+  dialog.render({ force: true });
+  return dialog;
+}
+
+/**
+ * Keep an existing world answering the way it did yesterday.
+ *
+ * `liteScope` is new, and its default — read the whole folder — is right for a
+ * fresh install and WRONG to impose on a world that is already running. Before
+ * this release lite always filtered by the asker's journal ownership. A GM who
+ * had set those permissions and relied on them would have found, after an
+ * update they did not ask for, that the archivist had started answering players
+ * from lore it previously withheld. That is a spoiler regression delivered
+ * silently, which is the worst way to deliver one.
+ *
+ * So an upgrading world is pinned to the behaviour it already had, and the
+ * wider default applies only where there is no previous behaviour to preserve.
+ * The GM is told once, because a setting that appeared and was decided for them
+ * should not also be a secret.
+ *
+ * Runs once, in the same branch that marks setup done, so it cannot fight a
+ * choice the GM makes afterwards.
+ */
+async function adoptPreviousScope() {
+  try {
+    await setSetting("liteScope", "asker");
+    record("info", "TV-SCOPE-PRESERVED", "existing world pinned to per-asker scoping");
+    // Only worth saying to somebody who might act on it. A bridge table has no
+    // lite scope to care about.
+    if (usingLite()) ui.notifications?.info?.(t("notify.scopePreserved"));
+  } catch (err) {
+    warn("could not preserve the previous lore scope", err);
+  }
+}
+
+/**
+ * The first thing a GM sees, and the reason it exists.
+ *
+ * The module ships defaulted to the bridge, because that is what it IS — the
+ * Foundry end of Tusk's Vault. But the package listing promises that installing
+ * it gives you something that "runs inside the module on its own", and those two
+ * facts met at the worst possible moment: a one-click install, then `/tusk`,
+ * then "Tusk's Vault is not paired with this world yet → Connect" — an
+ * instruction to connect to an application the GM has not downloaded and was
+ * told they would not need.
+ *
+ * Flipping the default would have fixed the newcomer and broken everyone else:
+ * a GM already running the bridge never had to change the setting, so nothing
+ * is stored, so an upgrade would silently move a working table onto lite. The
+ * choice is asked instead — once, on the first run in a world, with the
+ * consequences of each option stated rather than implied.
+ *
+ * Only ever shown in a world the module has never run in before; see the caller.
+ */
+async function runFirstRun() {
+  const DialogV2 = foundry?.applications?.api?.DialogV2;
+  if (!DialogV2) return false;
+
+  const folder = setting("liteFolder") || LITE_DEFAULT_FOLDER;
+  const content = `<div class="tusks-vault-setup">
+    <p>${escapeHtml(t("dialog.setup.body"))}</p>
+    <div class="tusks-vault-setup-option">
+      <h4>${escapeHtml(t("dialog.setup.liteHead"))}</h4>
+      <p>${escapeHtml(t("dialog.setup.liteBody", { folder }))}</p>
+    </div>
+    <div class="tusks-vault-setup-option">
+      <h4>${escapeHtml(t("dialog.setup.bridgeHead"))}</h4>
+      <p>${escapeHtml(t("dialog.setup.bridgeBody"))}</p>
+    </div>
+    <p class="notes">${escapeHtml(t("dialog.setup.either"))}</p>
+  </div>`;
+
+  return new Promise(resolve => {
+    const dialog = new DialogV2({
+      window: { title: t("dialog.setup.title") },
+      content,
+      buttons: [
+        { action: "lite", label: t("dialog.setup.chooseLite"), default: true, callback: () => "lite" },
+        { action: "bridge", label: t("dialog.setup.chooseBridge"), callback: () => "bridge" },
+        { action: "later", label: t("dialog.setup.later"), callback: () => "later" },
+      ],
+      submit: async choice => {
+        await applySetupChoice(choice);
+        resolve(choice);
+      },
+      // Dismissing the window is "later", not an unanswered question. A dialog
+      // that comes back every login because it was closed with Escape is worse
+      // than one that was never shown.
+      close: () => resolve(null),
+    });
+    dialog.render({ force: true });
+  }).then(async choice => {
+    if (choice === null) await setSetting("setupDone", true).catch(() => {});
+    return choice;
+  });
+}
+
+/**
+ * Do what the first-run choice said, and leave the GM able to type a question.
+ *
+ * Creating the folder is the part that matters. "Make a journal folder called
+ * Tusk's Lore" is one step, but it is one step between installing something and
+ * seeing it work, and it is the step at which the module looks broken — the
+ * error for a missing folder is indistinguishable from the error for a module
+ * that is not answering.
+ */
+async function applySetupChoice(choice) {
+  await setSetting("setupDone", true);
+  if (choice === "later") return;
+
+  if (choice === "bridge") {
+    await setSetting("answerSource", "bridge");
+    record("info", "TV-SETUP-BRIDGE", "first run: chose the bridge");
+    await runPairing();
+    return;
+  }
+
+  await setSetting("answerSource", "lite");
+  const name = setting("liteFolder") || LITE_DEFAULT_FOLDER;
+  let made = false;
+  if (!loreFolder()) {
+    try {
+      await Folder.create({ name, type: "JournalEntry" });
+      made = true;
+    } catch (err) {
+      // Not fatal: lite works the moment the folder exists, whoever makes it.
+      warn("could not create the lore folder", err);
+      record("warn", "TV-SETUP-FOLDER-FAIL", err?.message ?? String(err));
+    }
+  }
+  record("info", "TV-SETUP-LITE", "first run: chose lite", { folderCreated: made });
+  ui.notifications?.info?.(t(made ? "notify.setupLiteMade" : "notify.setupLiteReady", {
+    folder: name,
+    command: setting("triggerCommand") || "tusk",
+  }));
+}
+
+/**
+ * About, help, and the one place the project asks for anything.
+ *
+ * Three jobs, and the middle one is why it is not just a credits box.
+ * `TusksVault.diagnostics()` is the single most useful thing a GM can send with
+ * a bug report, and until 1.1.0 the only way to run it was the F12 console —
+ * which is a wall for precisely the non-technical GM this module is aimed at,
+ * and a round trip on every report that does get filed. A button removes both.
+ *
+ * Unrestricted, like the upgrade screen: nothing here is privileged, and a
+ * player who can open settings can already read what the table is running.
+ */
+async function openAbout() {
+  const DialogV2 = foundry?.applications?.api?.DialogV2;
+  if (!DialogV2) {
+    ui.notifications.error(t("notify.allowListUnavailable"));
+    return;
+  }
+
+  const mod = game.modules?.get?.(MODULE_ID);
+  const rows = [
+    [t("dialog.about.module"), `v${mod?.version ?? "?"}`],
+    [t("dialog.about.foundry"), String(game.version ?? "?")],
+    [t("dialog.about.mode"), usingLite() ? t("dialog.about.modeLite") : t("dialog.about.modeBridge")],
+  ]
+    .map(([label, value]) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`)
+    .join("");
+
+  const link = (href, label) => `<a href="${href}">${escapeHtml(label)}</a>`;
+
+  const content = `<div class="tusks-vault-about">
+    <p>${escapeHtml(t("dialog.about.blurb"))}</p>
+    <table class="tusks-vault-about-table"><tbody>${rows}</tbody></table>
+
+    <h4>${escapeHtml(t("dialog.about.helpHead"))}</h4>
+    <p class="notes">${escapeHtml(t("dialog.about.helpBody"))}</p>
+    <p><button type="button" class="tusks-vault-copy-diagnostics">
+      <i class="fas fa-clipboard"></i> ${escapeHtml(t("dialog.about.copy"))}
+    </button></p>
+
+    <h4>${escapeHtml(t("dialog.about.linksHead"))}</h4>
+    <p class="tusks-vault-about-links">
+      ${link(DOCS_SITE, t("dialog.about.guide"))} ·
+      ${link(`${VAULT_REPO}-Foundry/issues`, t("dialog.about.issues"))} ·
+      ${link(`${VAULT_REPO}-Foundry`, t("dialog.about.source"))} ·
+      ${link(`${VAULT_REPO}-Foundry/blob/main/LICENSE`, t("dialog.about.licence"))}
+    </p>
+
+    <h4>${escapeHtml(t("dialog.about.supportHead"))}</h4>
+    <p class="notes">${escapeHtml(t("dialog.about.supportBody"))}</p>
+    <p class="tusks-vault-support">${link(SUPPORT_URL, t("dialog.about.supportLink"))}</p>
+  </div>`;
+
+  const dialog = new DialogV2({
+    window: { title: t("dialog.about.title") },
+    content,
+    buttons: [{ action: "close", label: t("dialog.about.close"), default: true }],
+  });
+  await dialog.render({ force: true });
+
+  // Bound after render, because the button lives in the dialog's own markup
+  // rather than in its button row — a DialogV2 button would close the window,
+  // and closing the window is the opposite of what "copy this so you can paste
+  // it" wants.
+  const root = dialog.element;
+  root?.querySelector?.(".tusks-vault-copy-diagnostics")?.addEventListener?.("click", async () => {
+    const text = TusksVault.diagnostics();
+    try {
+      await navigator.clipboard.writeText(text);
+      ui.notifications?.info?.(t("dialog.about.copied"));
+    } catch {
+      // Clipboard access needs a secure context, which a plain-HTTP Foundry is
+      // not. Saying where the text already is beats failing silently.
+      ui.notifications?.warn?.(t("dialog.about.copyFailed"));
+    }
+  });
+  return dialog;
+}
+
+/**
+ * Point lite at the notes the GM already has.
+ *
+ * A checkbox per journal folder, the same shape as the allow list and for the
+ * same reason: the stored value is an id nobody can read or type.
+ *
+ * The named lore folder is shown first and cannot be unticked here — it is the
+ * one the folder SETTING names, and two controls that can each switch the same
+ * folder off is a way to end up with an empty corpus and no idea which of them
+ * did it.
+ */
+async function openFolderPicker() {
+  if (!game.user.isGM) {
+    ui.notifications.warn(t("notify.gmOnlyKey"));
+    return;
+  }
+  const DialogV2 = foundry?.applications?.api?.DialogV2;
+  if (!DialogV2) {
+    ui.notifications.error(t("notify.allowListUnavailable"));
+    return;
+  }
+
+  const primary = loreFolder();
+  const chosen = new Set(Array.isArray(setting("liteExtraFolders")) ? setting("liteExtraFolders") : []);
+  const folders = (game.folders?.filter?.(f => f.type === "JournalEntry") ?? [])
+    .filter(f => f.id !== primary?.id)
+    .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+
+  // How many entries each folder holds, so the GM is choosing between things
+  // rather than between names. A folder with nothing in it is the commonest
+  // thing to tick by mistake.
+  const counts = new Map();
+  for (const entry of game.journal?.filter?.(() => true) ?? []) {
+    const id = entry.folder?.id ?? entry.folder ?? null;
+    if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+
+  const rows = folders
+    .map(folder => `<label class="tusks-vault-allow-row">
+      <input type="checkbox" name="tusks-vault-folder" value="${escapeHtml(folder.id)}"${chosen.has(folder.id) ? " checked" : ""}>
+      <span class="tusks-vault-allow-name">${escapeHtml(folder.name ?? folder.id)}</span>
+      <span class="tusks-vault-allow-role">${escapeHtml(t("dialog.folders.count", { count: counts.get(folder.id) ?? 0 }))}</span>
+    </label>`)
+    .join("");
+
+  const primaryLine = primary
+    ? t("dialog.folders.primary", { folder: primary.name })
+    : t("dialog.folders.noPrimary", { folder: setting("liteFolder") || LITE_DEFAULT_FOLDER });
+
+  const body = folders.length === 0
+    ? `<p class="notes">${escapeHtml(t("dialog.folders.none"))}</p>`
+    : `<div class="tusks-vault-allow-list">${rows}</div>`;
+
+  const dialog = new DialogV2({
+    window: { title: t("dialog.folders.title") },
+    content: `<div class="tusks-vault-allow">
+      <p>${escapeHtml(t("dialog.folders.body"))}</p>
+      <p class="notes">${escapeHtml(primaryLine)}</p>
+      ${body}
+      <p class="notes">${escapeHtml(t("dialog.folders.note"))}</p>
+    </div>`,
+    buttons: [
+      {
+        action: "save",
+        label: t("dialog.folders.save"),
+        default: true,
+        callback: (_event, button, dlg) => {
+          const root = dlg?.element ?? dlg ?? button?.form ?? null;
+          const picked = [...(root?.querySelectorAll?.('input[name="tusks-vault-folder"]:checked') ?? [])]
+            .map(input => input.value);
+          setSetting("liteExtraFolders", picked)
+            .then(() => ui.notifications.info(t("notify.foldersSaved", { count: picked.length })))
+            .catch(err => ui.notifications.error(t("notify.keyFailed", { detail: err?.message ?? String(err) })));
+        },
+      },
+      { action: "cancel", label: t("dialog.folders.cancel") },
+    ],
+  });
+  dialog.render({ force: true });
+  return dialog;
+}
+
+/**
+ * The questions that actually get asked, and where each one is answered.
+ *
+ * Not a substitute for the documentation — a route into it. A GM whose command
+ * is not working is inside Foundry, mid-session, and is not going to go and
+ * find a repository; the shortest useful path is a list that names their
+ * symptom in the words they would use and then hands them the page.
+ *
+ * Every link is checked by `test/module.test.mjs` against the table in
+ * `docs/DocsLinks.md`, because these ship compiled into a release and a dead
+ * one is a dead end with no redirect to save it.
+ */
+const FAQ_ENTRIES = [
+  { id: "notCommand", href: `${MODULE_REPO}/blob/main/docs/Troubleshooting.md#foundry-says-the-command-is-not-valid` },
+  { id: "nothing", href: `${MODULE_REPO}/blob/main/docs/Troubleshooting.md#nothing-happens-or-the-question-just-sits-there` },
+  { id: "noMatches", href: `${MODULE_REPO}/blob/main/docs/Lite.md#the-folder` },
+  { id: "otherFolder", href: `${MODULE_REPO}/blob/main/docs/Lite.md#the-folder` },
+  { id: "players", href: `${MODULE_REPO}/blob/main/docs/Lite.md#only-the-gms-browser-ever-holds-the-key` },
+  { id: "key", href: `${MODULE_REPO}/blob/main/docs/Lite.md#what-a-key-in-the-browser-means` },
+  { id: "keySafe", href: `${MODULE_REPO}/blob/main/SECURITY.md` },
+  { id: "spoilers", href: `${MODULE_REPO}/blob/main/docs/Settings.md#what-each-answer-may-draw-on` },
+  { id: "playerNotes", href: `${MODULE_REPO}/blob/main/docs/Lite.md#letting-players-add-their-own-lore` },
+  { id: "hosted", href: `${MODULE_REPO}/blob/main/docs/Hosting.md` },
+  { id: "cost", href: `${DOCS_SITE}docs/about/what-it-costs/` },
+  { id: "difference", href: `${DOCS_SITE}` },
+];
+
+async function openFaq() {
+  const DialogV2 = foundry?.applications?.api?.DialogV2;
+  if (!DialogV2) {
+    ui.notifications.error(t("notify.allowListUnavailable"));
+    return;
+  }
+
+  const items = FAQ_ENTRIES.map(entry => `<details class="tusks-vault-faq-item">
+      <summary>${escapeHtml(t(`faq.${entry.id}.q`))}</summary>
+      <p>${escapeHtml(t(`faq.${entry.id}.a`))}</p>
+      <p class="tusks-vault-faq-link"><a href="${entry.href}">${escapeHtml(t("dialog.faq.more"))}</a></p>
+    </details>`).join("");
+
+  const dialog = new DialogV2({
+    window: { title: t("dialog.faq.title") },
+    content: `<div class="tusks-vault-faq">
+      <p>${escapeHtml(t("dialog.faq.body"))}</p>
+      ${items}
+      <p class="notes">${escapeHtml(t("dialog.faq.footer"))}</p>
+      <p class="tusks-vault-faq-link">
+        <a href="${MODULE_REPO}/blob/main/docs/Troubleshooting.md">${escapeHtml(t("dialog.faq.allDocs"))}</a> ·
+        <a href="${MODULE_REPO}/issues">${escapeHtml(t("dialog.faq.issues"))}</a>
+      </p>
+    </div>`,
+    buttons: [{ action: "close", label: t("dialog.faq.close"), default: true }],
+  });
+  dialog.render({ force: true });
+  return dialog;
+}
+
+/**
+ * Who can be answered from what, as a table.
+ *
+ * The alternative to this screen is a paragraph in the documentation telling a
+ * GM to go and check their journal permissions by hand, which is advice rather
+ * than a tool. Per-asker scoping and player-authored notes both make ownership
+ * load-bearing — a page's ownership now decides what the archivist will say to
+ * whom — and ownership is the one thing about a journal that is invisible from
+ * the sidebar.
+ *
+ * Reports Foundry's ownership rather than editing it. A second place to change
+ * permissions is a second place for them to disagree.
+ */
+async function openLorePermissions() {
+  if (!game.user.isGM) {
+    ui.notifications.warn(t("notify.gmOnlyKey"));
+    return;
+  }
+  const DialogV2 = foundry?.applications?.api?.DialogV2;
+  if (!DialogV2) {
+    ui.notifications.error(t("notify.allowListUnavailable"));
+    return;
+  }
+
+  const folderName = setting("liteFolder") || LITE_DEFAULT_FOLDER;
+  const players = game.users?.filter?.(u => !u.isGM) ?? [];
+  const folderIds = loreFolderIds();
+  const entries = folderIds
+    ? (game.journal?.filter?.(e => folderIds.has(e.folder?.id ?? e.folder)) ?? [])
+    : [];
+
+  const rows = [];
+  for (const entry of entries) {
+    for (const page of [...(entry.pages?.contents ?? entry.pages ?? [])]) {
+      if (!journalText(page?.text?.content ?? "")) continue;
+      const readers = players.filter(player => mayRead(player, page, entry));
+      rows.push({ name: pageName(entry, page), readers: readers.length, total: players.length });
+    }
+  }
+
+  const describe = row => {
+    if (row.total === 0 || row.readers === 0) return t("dialog.perms.gmOnly");
+    if (row.readers === row.total) return t("dialog.perms.everyone");
+    return t("dialog.perms.some", { count: row.readers, total: row.total });
+  };
+  const kind = row => (row.readers === 0 ? "gm" : row.readers === row.total ? "all" : "some");
+
+  const body = rows.length === 0
+    ? `<p>${escapeHtml(t("dialog.perms.empty", { folder: folderName }))}</p>`
+    : `<table class="tusks-vault-perms-table">
+        <thead><tr>
+          <th>${escapeHtml(t("dialog.perms.colPage"))}</th>
+          <th>${escapeHtml(t("dialog.perms.colWho"))}</th>
+        </tr></thead>
+        <tbody>${rows
+          .sort((a, b) => a.readers - b.readers || a.name.localeCompare(b.name))
+          .map(row => `<tr class="is-${kind(row)}">
+            <th scope="row">${escapeHtml(row.name)}</th>
+            <td>${escapeHtml(describe(row))}</td>
+          </tr>`)
+          .join("")}</tbody>
+      </table>`;
+
+  const writers = players.filter(u => u.hasPermission?.("JOURNAL_CREATE"));
+  const writerNote = writers.length > 0
+    ? `<p class="notes">${escapeHtml(t("dialog.perms.writable", { count: writers.length }))}</p>`
+    : "";
+
+  const dialog = new DialogV2({
+    window: { title: t("dialog.perms.title") },
+    content: `<div class="tusks-vault-perms">
+      <p>${escapeHtml(t("dialog.perms.body", { folder: folderName }))}</p>
+      ${body}
+      <p class="notes">${escapeHtml(t("dialog.perms.scopeNote", {
+        scope: t(`settings.liteScope.${setting("liteScope") || "asker"}`),
+      }))}</p>
+      ${writerNote}
+    </div>`,
+    buttons: [{ action: "close", label: t("dialog.perms.close"), default: true }],
   });
   dialog.render({ force: true });
   return dialog;
@@ -1710,6 +2336,11 @@ const LITE_CORPUS_CHAR_CAP = 120_000;
 const LITE_SEARCH_RESULTS = 5;
 const LITE_TIMEOUT_MS = 120_000;
 
+/** Said to the model, in the prompt, when a document had to be cut short — so
+ *  a fragment cannot be mistaken for the whole record by the one reader who
+ *  cannot check. */
+const TRUNCATION_MARKER = "\n[… this document was too long to include in full; the rest was not read.]";
+
 /**
  * The citation contract, and the reason to keep it in one piece.
  *
@@ -1774,6 +2405,64 @@ function loreFolder() {
 }
 
 /**
+ * Every folder in the lore tree — the named one, and everything nested inside it.
+ *
+ * Until 1.1.0 only direct children counted, and the failure was a dead end
+ * rather than a degradation: a GM who had organised their notes into
+ * `Tusk's Lore / NPCs` and `Tusk's Lore / Sessions` got an EMPTY corpus and an
+ * error telling them to create a folder they had visibly already created.
+ * Organising notes into subfolders is the ordinary thing to do with a folder,
+ * so the fix is to read the tree rather than to warn about it.
+ *
+ * Walks until nothing new is added rather than recursing to a fixed depth:
+ * Foundry nests folders arbitrarily, and a `Set` makes the loop terminate even
+ * if a cycle somehow exists in a hand-edited world.
+ */
+function loreFolderIds() {
+  const all = game.folders?.filter?.(f => f.type === "JournalEntry") ?? [];
+  const ids = new Set();
+
+  const root = loreFolder();
+  if (root) ids.add(root.id);
+
+  // Folders the GM picked out of what they already had.
+  //
+  // This is the wall a new install actually hits. The welcome screen makes the
+  // lore folder, and then the GM is looking at the notes they have kept for two
+  // years — "NPCs", "Session Notes", whatever the adventure they bought came
+  // with — and the only documented way forward is to move or retype all of it
+  // into a new folder. Most people stop there, and reasonably: reorganising a
+  // campaign to suit a module is a bad trade.
+  //
+  // Reading folders they already have costs them nothing and gives up nothing
+  // that belongs to the full application, which reads notes that are not in
+  // Foundry at all.
+  const extras = setting("liteExtraFolders");
+  if (Array.isArray(extras)) {
+    for (const id of extras) if (typeof id === "string" && all.some(f => f.id === id)) ids.add(id);
+  }
+
+  if (ids.size === 0) return null;
+
+  // Subfolders, to any depth. Walks until nothing new is added rather than
+  // recursing to a fixed depth: Foundry nests folders arbitrarily, and a `Set`
+  // makes the loop terminate even if a cycle somehow exists in a hand-edited
+  // world.
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const folder of all) {
+      const parent = folder.folder?.id ?? folder.folder ?? null;
+      if (parent && ids.has(parent) && !ids.has(folder.id)) {
+        ids.add(folder.id);
+        grew = true;
+      }
+    }
+  }
+  return ids;
+}
+
+/**
  * Journal page content is stored as HTML. Reduce it to the text a model should
  * read — and note this runs BEFORE anything is put in a prompt, not before it
  * is put on screen, so it is not a security boundary. `escapeHtml` is what
@@ -1792,33 +2481,208 @@ function journalText(html) {
 }
 
 /**
+ * May this person read this page?
+ *
+ * THE PAGE IS THE UNIT, NOT THE ENTRY, and that is a correctness fix rather
+ * than a refinement. Foundry pages carry their own ownership:
+ * `BaseJournalEntryPage` initialises the field to INHERIT, and
+ * `Document#getUserLevel` returns a page's own level whenever it is not
+ * INHERIT, deferring to the parent entry only when it is.
+ *
+ * So asking the entry — which is what this did until 1.1.0 — was wrong in both
+ * directions. A GM-only page inside a shared entry had its text put into a
+ * player's corpus, which is precisely the leak the filter exists to prevent
+ * and precisely what the documentation promised could not happen. And a page
+ * shared with one player inside an otherwise hidden entry was excluded, which
+ * is the player-authored-backstory case.
+ *
+ * Asking the page gets both right, because Foundry already walks to the parent
+ * for us.
+ *
+ * OBSERVER rather than LIMITED: a limited-ownership document shows its name and
+ * nothing else, and answering from something somebody may only see the name of
+ * is the same leak one step quieter.
+ */
+function mayRead(reader, page, entry) {
+  if (!reader) return true;
+  try {
+    if (typeof page?.testUserPermission === "function") return page.testUserPermission(reader, "OBSERVER") === true;
+    // A page that cannot answer for itself defers to its entry. Nothing Foundry
+    // ships lands here; a hand-built document or a very old world might, and
+    // falling through to "allowed" would turn a missing method into a leak.
+    if (typeof entry?.testUserPermission === "function") return entry.testUserPermission(reader, "OBSERVER") === true;
+    return true;
+  } catch (err) {
+    // FAIL CLOSED, and do not let one document take the answer down with it.
+    //
+    // This is a permission check, so an exception must mean "no" — the
+    // alternative is a document whose ownership could not be evaluated being
+    // treated as readable. And without the catch, one broken page in a folder
+    // threw out of `collectLore` and the GM got an error card instead of an
+    // answer assembled from the other ninety-nine.
+    warn("a document could not answer whether it may be read; excluding it", err);
+    record("warn", "TV-LITE-PERM-FAIL", err?.message ?? String(err));
+    return false;
+  }
+}
+
+/**
+ * What a citation says — and what it has to be able to do.
+ *
+ * A citation is this module's central promise: click through and check, rather
+ * than take the archivist's word for it. That promise needs the name to
+ * identify something a reader can actually find. A campaign's NPC notes are
+ * routinely one entry of forty-odd pages, and `[NPCs]` leaves the reader
+ * searching all of it by hand; `[NPCs: <the page>]` names the page, and the
+ * link built from it opens the journal AT that page.
+ *
+ * The single-page case is collapsed because Foundry names a lone page after its
+ * entry by default, and `Harbour Master: Harbour Master` reads as a bug.
+ */
+function pageName(entry, page) {
+  const entryName = String(entry?.name ?? "Untitled").trim() || "Untitled";
+  const pageTitle = String(page?.name ?? "").trim();
+  // Collapse ONLY when the page repeats its entry, which is what Foundry names
+  // the first page of a new entry and would otherwise read as a bug:
+  // "Harbour Master: Harbour Master".
+  //
+  // Deliberately NOT collapsed for a single page named something of its own.
+  // That rule was here and it was wrong: an entry "Player Backstories" holding
+  // one page "Rhian" was cited as "Player Backstories", which is the entry the
+  // reader already knew about and not the page they wanted. Losing the page
+  // name costs more than the occasional verbose "Session 07: Quest Details".
+  if (!pageTitle || pageTitle === entryName) return entryName;
+  return `${entryName}: ${pageTitle}`;
+}
+
+/**
+ * Everyone whose view has to agree before a page counts as shared.
+ *
+ * Only the non-GM users, because a GM sees everything and including one would
+ * make the intersection meaningless. Falls back to the asker when a world has
+ * no players at all — an intersection over nobody is "everything", and
+ * defaulting a scope setting into showing everything is the one outcome it
+ * exists to prevent.
+ */
+function tableAudience(asker) {
+  const players = game.users?.filter?.(u => !u.isGM) ?? [];
+  return players.length > 0 ? players : [asker].filter(Boolean);
+}
+
+/**
+ * Who this answer is allowed to have been assembled for.
+ *
+ * `null` means no filter at all, which is only ever correct for the GM-wide
+ * scope — the relay has already established that it is itself the active GM,
+ * and a GM's own view is everything.
+ */
+function loreAudience(asker) {
+  const scope = setting("liteScope") || "all";
+  if (scope === "shared") return tableAudience(asker);
+  if (scope === "asker") return [asker].filter(Boolean);
+  // `all`, and anything unrecognised. Falling back to no filter rather than to
+  // a filter is deliberate: an unknown value should behave like the documented
+  // default, not silently switch a table into a mode it did not choose.
+  return null;
+}
+
+/** Is the archivist reading Foundry's ownership at all? Everything that treats
+ *  an answer as narrow depends on this being true. */
+function scopingIsOn() {
+  const scope = setting("liteScope") || "all";
+  return scope === "asker" || scope === "shared";
+}
+
+/**
+ * The one arrangement that turns a player's own journal into everyone's problem.
+ *
+ * A note in the lore folder is not merely quoted — its text goes INTO the
+ * prompt, so whoever can edit it is writing instructions the model reads next
+ * to the archivist's own. Under `asker` scope that is contained by
+ * construction: the corpus assembled for a player only ever holds documents
+ * that player could already open, so the worst a planted note can do is talk to
+ * its own author about their own material.
+ *
+ * Under the default it is not contained. Every question is answered from the
+ * whole folder whoever asked, so a note a player can edit sits in a prompt
+ * alongside lore they cannot read, and can ask for it.
+ *
+ * WHAT THIS CHECKS CHANGED WHEN THE DEFAULT DID. It used to ask whether players
+ * *could* create journals, which was reasonable when the wide scope was a
+ * deliberate opt-in and is useless now that it is the default: Foundry grants
+ * `JOURNAL_CREATE` to Trusted and above, so that test fires on ordinary worlds
+ * where nothing is wrong, and a warning that cries wolf is one nobody reads on
+ * the day it matters.
+ *
+ * So it asks the precise question instead: is there a document in the lore
+ * folder that a non-GM can actually edit? That is checkable, it is the thing
+ * that is actually true or false, and it stays quiet until it happens.
+ */
+function warnIfScopeIsWideOpen() {
+  if (scopingIsOn()) return false;
+
+  const folderIds = loreFolderIds();
+  if (!folderIds) return false;
+  const players = game.users?.filter?.(u => !u.isGM) ?? [];
+  if (players.length === 0) return false;
+
+  // OWNER, not OBSERVER: being able to READ a lore note is the ordinary case
+  // and the whole point of the folder. Being able to WRITE one is what puts
+  // text of somebody else's choosing into the prompt.
+  const owns = (user, doc) => doc?.testUserPermission?.(user, "OWNER") === true;
+  let writable = 0;
+  for (const entry of game.journal?.filter?.(e => folderIds.has(e.folder?.id ?? e.folder)) ?? []) {
+    const pages = entry.pages?.contents ?? entry.pages ?? [];
+    if (players.some(p => owns(p, entry) || [...pages].some(page => owns(p, page)))) writable += 1;
+  }
+  if (writable === 0) return false;
+
+  record("warn", "TV-LITE-SCOPE-WIDE", "every answer reads the whole folder, and players can edit part of it", {
+    writableEntries: writable,
+  });
+  ui.notifications?.warn?.(t("notify.scopeWideOpen", { count: writable }), { permanent: true });
+  return true;
+}
+
+/**
  * The documents this asker is allowed to have answered from.
  *
- * Filtered by Foundry's own ownership, per asker — which is per-player lore
- * scoping, the thing the project has tracked as the real fix for the spoiler
- * problem and the blocking follow-on for the Foundry surface. Lite gets it
- * almost free, because a journal entry carries permissions and a file on disk
- * does not. Vault, reading a folder, has no way to know any of this.
+ * Filtered by Foundry's own ownership — per asker by default, which is
+ * per-player lore scoping, and the one thing this half does that the full
+ * application structurally cannot. Vault reads files on disk, and a file
+ * carries no notion of who at your table may read it; a journal page carries
+ * permissions the GM already maintains for other reasons.
  *
  * The GM's own client assembles this, so it must ask about the ASKER rather
  * than about itself — `game.user` here is the relay, not the person who typed.
+ *
+ * Each document carries `shared`, meaning every player could read it. Nothing
+ * here uses that; the relay does, to notice when an answer drawn from private
+ * material is about to be posted to the whole table.
  */
 function collectLore(asker) {
-  const folder = loreFolder();
-  if (!folder) return [];
-  const entries = game.journal?.filter?.(e => e.folder?.id === folder.id) ?? [];
+  const folderIds = loreFolderIds();
+  if (!folderIds) return [];
+  const entries = game.journal?.filter?.(e => folderIds.has(e.folder?.id ?? e.folder)) ?? [];
+  const audience = loreAudience(asker);
+  const players = tableAudience(asker);
   const docs = [];
   for (const entry of entries) {
-    // OBSERVER rather than LIMITED: a limited-ownership journal shows its name
-    // and nothing else, and answering from a document somebody may only see the
-    // name of is the leak this filter exists to prevent.
-    if (asker && entry.testUserPermission && !entry.testUserPermission(asker, "OBSERVER")) continue;
     const pages = entry.pages?.contents ?? entry.pages ?? [];
-    const text = [...pages]
-      .map(p => journalText(p?.text?.content ?? ""))
-      .filter(Boolean)
-      .join("\n\n");
-    if (text) docs.push({ name: String(entry.name ?? "Untitled"), uuid: entry.uuid, text });
+    for (const page of [...pages]) {
+      if (audience && !audience.every(reader => mayRead(reader, page, entry))) continue;
+      const text = journalText(page?.text?.content ?? "");
+      // Image, video and PDF pages reduce to nothing. Skipping them keeps a
+      // named-but-empty document out of the ranking, where it would match on
+      // its title and then contribute no passage to cite.
+      if (!text) continue;
+      docs.push({
+        name: pageName(entry, page),
+        uuid: page?.uuid ?? entry.uuid,
+        shared: players.every(reader => mayRead(reader, page, entry)),
+        text,
+      });
+    }
   }
   return docs;
 }
@@ -1888,6 +2752,20 @@ function excerptFor(doc, question) {
  * what makes it the default. Returns the same shape as everything else so the
  * card renders identically.
  */
+/**
+ * Citation name to the thing it names.
+ *
+ * Built from the documents that actually went into THIS answer, never from the
+ * whole corpus: a citation the model invented for a document it was not given
+ * must not resolve to a real page, or an invention becomes indistinguishable
+ * from a source at exactly the moment the reader is checking.
+ */
+function sourceMap(docs) {
+  const map = {};
+  for (const doc of docs) if (doc?.name && doc?.uuid) map[doc.name] = doc.uuid;
+  return map;
+}
+
 function searchAnswer(question, docs, extra = {}) {
   const ranked = rankLore(question, docs).slice(0, LITE_SEARCH_RESULTS);
   if (ranked.length === 0) {
@@ -1900,7 +2778,15 @@ function searchAnswer(question, docs, extra = {}) {
   for (const doc of ranked) lines.push(`- ${excerptFor(doc, question)} [${doc.name}]`);
   return {
     content: [{ type: "text", text: lines.join("\n") }],
-    _meta: { [MODULE_ID]: { source: "lite-search", upsell: true, ...extra } },
+    _meta: {
+      [MODULE_ID]: {
+        source: "lite-search",
+        upsell: true,
+        sources: sourceMap(ranked),
+        narrowed: ranked.some(doc => doc.shared === false),
+        ...extra,
+      },
+    },
   };
 }
 
@@ -1983,24 +2869,93 @@ function isRetiredModelError(status, message) {
 
 // ─── Layer 2: answers ────────────────────────────────────────────────────────
 
+/** Below this, a slice of a document is too small to be worth the confusion of
+ *  half-quoting it, and the document is honestly reported as dropped instead. */
+const LITE_MIN_TRUNCATED_CHARS = 2000;
+
+/**
+ * The part of a document worth keeping when the whole of it will not fit.
+ *
+ * Centred on the earliest search term rather than taken from the front. A long
+ * lore document is usually chronological — a session log, a family history — so
+ * its first characters are its least relevant, and slicing from the start
+ * reliably keeps the one part of it nobody asked about.
+ *
+ * A quarter of the window sits before the match so the passage has its lead-in;
+ * the rest follows it.
+ */
+function windowAround(doc, question, room) {
+  if (doc.text.length <= room) return doc.text;
+  const lower = doc.text.toLowerCase();
+  let at = -1;
+  for (const term of searchTerms(question)) {
+    const found = lower.indexOf(term);
+    if (found >= 0 && (at < 0 || found < at)) at = found;
+  }
+  if (at < 0) return doc.text.slice(0, room);
+  const start = Math.max(0, Math.min(at - Math.floor(room / 4), doc.text.length - room));
+  return `${start > 0 ? "… " : ""}${doc.text.slice(start, start + room)}`;
+}
+
 /** As much of the corpus as fits, best matches first, each labelled so the
  *  model can cite it by name. */
 function buildPrompt(question, docs) {
   const ranked = rankLore(question, docs);
   const ordered = ranked.length > 0 ? ranked : docs;
   const parts = [];
+  const used = [];
   let budget = LITE_CORPUS_CHAR_CAP;
-  let included = 0;
+  let dropped = 0;
+  let truncated = false;
+
+  // First pass: everything that fits WHOLE, best first. Whole documents are
+  // strictly better than fragments, so they get first refusal on the budget
+  // regardless of how the leftovers are then handled.
+  const tooLarge = [];
   for (const doc of ordered) {
     const block = `[SOURCE: ${doc.name}]\n${doc.text}\n`;
-    if (block.length > budget) continue;
-    parts.push(block);
-    budget -= block.length;
-    included += 1;
+    if (block.length <= budget) {
+      parts.push(block);
+      used.push(doc);
+      budget -= block.length;
+    } else {
+      tooLarge.push(doc);
+    }
   }
+
+  // Second pass: the best document that did not fit gets whatever is left.
+  //
+  // Until 1.1.0 there was no second pass — a document larger than the remaining
+  // budget was skipped, silently and entirely. A GM whose answer lived in one
+  // long session log got "I am unsure about this detail" while the passage sat
+  // in the document that had been thrown away, and `included`/`total` was
+  // computed and then read by nothing.
+  //
+  // Doing this AFTER the whole-document pass matters: spending the budget on a
+  // fragment first would evict several complete notes to make room for part of
+  // one. The window is taken around the match rather than from the front,
+  // because a long lore document is usually chronological and its opening is
+  // its least relevant part.
+  if (tooLarge.length > 0) {
+    const [best, ...rest] = tooLarge;
+    const header = `[SOURCE: ${best.name}]\n`;
+    const room = budget - header.length - TRUNCATION_MARKER.length - 1;
+    if (room >= LITE_MIN_TRUNCATED_CHARS) {
+      parts.push(`${header}${windowAround(best, question, room)}${TRUNCATION_MARKER}\n`);
+      used.push(best);
+      truncated = true;
+      dropped = rest.length;
+    } else {
+      dropped = tooLarge.length;
+    }
+  }
+
   return {
-    included,
+    used,
+    included: used.length,
     total: docs.length,
+    dropped,
+    truncated,
     text: `${parts.join("\n")}\n---\nQuestion: ${question}`,
   };
 }
@@ -2053,6 +3008,15 @@ async function askGemini(question, docs, { key, model }) {
     throw new BridgeError(200, t("lite.noAnswer", { reason: reason ?? "empty" }), "TV-LITE-EMPTY");
   }
 
+  if (prompt.dropped > 0 || prompt.truncated) {
+    record("warn", "TV-LITE-CORPUS-CAPPED", "the corpus did not fit in one question", {
+      included: prompt.included,
+      total: prompt.total,
+      dropped: prompt.dropped,
+      truncated: prompt.truncated,
+    });
+  }
+
   return {
     content: [{ type: "text", text }],
     _meta: {
@@ -2060,7 +3024,16 @@ async function askGemini(question, docs, { key, model }) {
         source: "lite-gemini",
         upsell: true,
         loreGapRecorded: text.toLowerCase().includes(LITE_LORE_GAP_FRAGMENT),
-        corpus: { included: prompt.included, total: prompt.total },
+        // Only the documents that actually reached the model. A citation for
+        // anything else is the model's invention and must not be linkable.
+        sources: sourceMap(prompt.used),
+        narrowed: prompt.used.some(doc => doc.shared === false),
+        corpus: {
+          included: prompt.included,
+          total: prompt.total,
+          dropped: prompt.dropped,
+          truncated: prompt.truncated,
+        },
       },
     },
   };
@@ -2216,7 +3189,7 @@ const FENCE_SENTINEL = "\u0001";
  * matches nothing, which presents as a formatting feature that simply never
  * works.
  */
-function renderAnswer(text) {
+function renderAnswer(text, sources = {}) {
   // Control characters are stripped before anything else so the fenced-code
   // placeholders below cannot be forged by a model emitting one.
   const safe = escapeHtml(String(text ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ""));
@@ -2227,7 +3200,15 @@ function renderAnswer(text) {
     return `${FENCE_SENTINEL}${fences.length - 1}${FENCE_SENTINEL}`;
   });
 
-  const html = renderBlocks(withoutFences);
+  // The citation names reaching `citations()` have been through `escapeHtml`
+  // along with the rest of the answer, so the lookup table has to be keyed the
+  // same way or a journal called "Tusk's Lore" never matches "Tusk&#39;s Lore"
+  // and every citation for it renders as unverified. Escaped once, here, rather
+  // than per citation.
+  const keyed = {};
+  for (const [name, uuid] of Object.entries(sources ?? {})) keyed[escapeHtml(name)] = uuid;
+
+  const html = renderBlocks(withoutFences, keyed);
   return html.replace(
     new RegExp(`${FENCE_SENTINEL}(\\d+)${FENCE_SENTINEL}`, "g"),
     (_m, i) => fences[Number(i)] ?? ""
@@ -2243,7 +3224,7 @@ function renderAnswer(text) {
  * kept in step with a security property that is currently one line at the top
  * of `renderAnswer`. The subset below is what Vault's answers actually contain.
  */
-function renderBlocks(escaped) {
+function renderBlocks(escaped, sources = {}) {
   const lines = escaped.split("\n");
   const out = [];
   let paragraph = [];
@@ -2252,18 +3233,18 @@ function renderBlocks(escaped) {
 
   const flushParagraph = () => {
     if (paragraph.length === 0) return;
-    out.push(`<p>${inline(paragraph.join("<br>"))}</p>`);
+    out.push(`<p>${inline(paragraph.join("<br>"), sources)}</p>`);
     paragraph = [];
   };
   const flushList = () => {
     if (!list) return;
-    const items = list.items.map(item => `<li>${inline(item)}</li>`).join("");
+    const items = list.items.map(item => `<li>${inline(item, sources)}</li>`).join("");
     out.push(`<${list.tag}>${items}</${list.tag}>`);
     list = null;
   };
   const flushQuote = () => {
     if (quote.length === 0) return;
-    out.push(`<blockquote>${inline(quote.join("<br>"))}</blockquote>`);
+    out.push(`<blockquote>${inline(quote.join("<br>"), sources)}</blockquote>`);
     quote = [];
   };
   const flushAll = () => {
@@ -2293,7 +3274,7 @@ function renderBlocks(escaped) {
       // Every level renders at the same size. The chat sidebar is ~300px wide
       // and a model that opens with `#` is not asking for 2em type in it — the
       // useful information is that the line is a heading, not which depth.
-      out.push(`<p class="tusks-vault-heading">${inline(heading[2])}</p>`);
+      out.push(`<p class="tusks-vault-heading">${inline(heading[2], sources)}</p>`);
       continue;
     }
 
@@ -2352,12 +3333,13 @@ function renderBlocks(escaped) {
 }
 
 /** Inline spans, applied to one already-escaped block of text. */
-function inline(escaped) {
+function inline(escaped, sources = {}) {
   return citations(
     escaped
       .replace(/`([^`\n]+)`/g, "<code>$1</code>")
       .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+      .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>"),
+    sources
   );
 }
 
@@ -2380,7 +3362,7 @@ function inline(escaped) {
  * with a sentinel-free marker class and no attributes drawn from the match —
  * the captured text is already escaped, and it goes in as text content only.
  */
-function citations(escaped) {
+function citations(escaped, sources = {}) {
   return escaped
     .replace(
       /\[clarification:\s*([^\]\n]{1,80})\]/gi,
@@ -2393,7 +3375,71 @@ function citations(escaped) {
     // Anything else short and bracketed is a source filename. Capped in length
     // and barred from containing a tag we just inserted, so an ordinary
     // parenthetical aside in prose is not mistaken for a citation.
-    .replace(/\[([^\]\n<>]{1,60})\]/g, (_m, name) => chip("source", name.trim()));
+    .replace(/\[([^\]\n<>]{1,60})\]/g, (_m, name) => sourceChip(name.trim(), sources));
+}
+
+/**
+ * A source citation — as a link when it names something real, as a flagged chip
+ * when it does not.
+ *
+ * The link is the promise kept. Foundry binds one delegated click handler to
+ * `a[data-link]` on the body, and `JournalEntryPage#_onClickDocumentLink`
+ * opens the parent journal AT that page — so a citation carrying a PAGE uuid
+ * lands the reader on the passage rather than at the top of a forty-page
+ * entry. That only became possible when the corpus started being indexed per
+ * page; before it, the only uuid available named the whole journal.
+ *
+ * The unverified case matters as much. A model can emit a citation for a
+ * document it was never given, and until now that was indistinguishable on
+ * screen from one it was. `sources` holds only what actually went into THIS
+ * prompt, so anything absent from it is either an invention or a document the
+ * asker could not read — both of which the reader deserves to see marked.
+ *
+ * The name is interpolated into an attribute, so it is escaped AGAIN here. It
+ * arrives already escaped for text context, which is not the same thing: the
+ * uuid is ours, but the name came out of a model.
+ */
+function sourceChip(name, sources) {
+  const map = sources ?? {};
+  // NO MAP MEANS NO CLAIM, not a failed check. A Vault answer arrives over the
+  // bridge with real citations this module has no index for, and marking those
+  // "unverified" would libel the half of the module that is doing the better
+  // job. Absence of evidence is rendered exactly as it was before 1.1.0.
+  if (Object.keys(map).length === 0) return chip("source", name);
+
+  const uuid = Object.prototype.hasOwnProperty.call(map, name) ? map[name] : null;
+  if (!uuid) return chip("unverified", name);
+  return `<a class="content-link tusks-vault-cite is-source" data-link data-uuid="${escapeHtml(uuid)}">` +
+    `<i class="fas fa-book-open"></i>${name}</a>`;
+}
+
+/**
+ * Has this answer earned the line about the full application?
+ *
+ * It used to appear on every lite answer, which is an advertisement under
+ * every answer forever — the single thing most likely to make a free tier read
+ * as a trial rather than a finished product, and the reason tables uninstall
+ * modules that are otherwise fine.
+ *
+ * The fix is not a quota but a reason. Each case below is a moment the table
+ * has actually met a limit lite has and Vault does not, so the line stops being
+ * a pitch and becomes the answer to the question they just asked:
+ *
+ *   - it could not find anything, and Vault matches meaning rather than words;
+ *   - the corpus did not fit, and Vault indexes instead of stuffing a prompt;
+ *   - written answers are on with no key here, and Vault keeps keys off browsers.
+ *
+ * An answer that worked says nothing. Somebody who wants the comparison has the
+ * settings panel, the About screen and the package page; somebody who is happy
+ * is left alone.
+ */
+function upsellEarned(meta) {
+  return !!(
+    meta.keyMissing ||
+    meta.loreGapRecorded ||
+    meta.corpus?.dropped > 0 ||
+    meta.corpus?.truncated
+  );
 }
 
 /**
@@ -2406,11 +3452,34 @@ function citations(escaped) {
  * be a real link without weakening the escaping rule by a single character.
  */
 function upsellFooter(meta) {
-  if (!meta?.upsell) return "";
+  if (!meta?.upsell || !upsellEarned(meta)) return "";
   const line = meta.keyMissing ? t("lite.footerNoKey") : t("lite.footer");
   return `<p class="tusks-vault-upsell">${escapeHtml(line)} ` +
     `<a href="${DOCS_SITE}">${escapeHtml(t("lite.footerLink"))}</a> · ` +
     `<a href="${VAULT_REPO}">${escapeHtml(t("lite.footerRepo"))}</a></p>`;
+}
+
+/**
+ * The two things about an answer that are the module's fault rather than the
+ * archive's, said on the card rather than only in a log.
+ *
+ * The corpus note exists because the failure it describes is invisible and
+ * looks exactly like the archive not knowing. Until 1.1.0 the cap was enforced
+ * silently: a document too large to fit was dropped, `included`/`total` was
+ * computed and then read by nothing, and a GM whose answer lived in the one
+ * dropped note got "I am unsure about this detail" with no way to find out why.
+ */
+function corpusNote(meta, narrowedForId) {
+  const notes = [];
+  const corpus = meta?.corpus;
+  if (corpus && (corpus.dropped > 0 || corpus.truncated)) {
+    notes.push(t("lite.corpusCapped", {
+      included: corpus.included,
+      total: corpus.total,
+    }));
+  }
+  if (narrowedForId) notes.push(t("chat.answeredPrivately"));
+  return notes.map(note => `<p class="notes tusks-vault-note">${escapeHtml(note)}</p>`).join("");
 }
 
 function chip(kind, label) {
@@ -2678,14 +3747,42 @@ Hooks.on("createChatMessage", async (message) => {
     if (meta.declined) classes.push("is-declined");
     if (meta.loreGapRecorded) classes.push("is-gap");
 
+    // An answer assembled from documents not everyone can open must not be
+    // posted where not everyone should read it.
+    //
+    // Per-asker scoping bounds what goes INTO an answer; it says nothing about
+    // who reads the answer that comes out. Set *Who sees the answer* to
+    // "Everyone, in the open" and the two settings quietly cancel: a player's
+    // own backstory is retrieved correctly, then published to the table. The
+    // feature leaks on exactly the case that motivates it.
+    //
+    // So the retrieval decides the audience when the retrieval was narrow. The
+    // placeholder is re-aimed rather than a second message posted, because a
+    // whisper that arrives next to a public "Consulting the archive…" tells the
+    // table something happened and denies them only the content.
+    //
+    // Gated on scoping being ON. Under the default the GM has said "answer from
+    // everything in the folder" and separately said "post answers in the open";
+    // overriding the second because the first did what it was told would leave
+    // *Everyone, in the open* quietly not working, with nothing to explain it.
+    // Two settings fighting is worse than either losing. The spoiler trade-off
+    // that remains is the documented one, and *Who may ask* is its answer.
+    const patch = {};
+    if (meta.narrowed && whisper.length === 0 && scopingIsOn()) {
+      patch.whisper = whisperTargets("asker", author.id);
+      record("info", "TV-ANSWER-NARROWED", "private sources; answered privately rather than publicly");
+    }
+
     // NOT wrapped in a <p>. `renderAnswer` emits block-level markup —
     // paragraphs, lists, blockquotes — and a <p> cannot contain any of them:
     // the browser auto-closes it at the first block child, leaving an empty
     // paragraph that then collects the `:first-child` margin rule meant for
     // the real first block.
-    await placeholder.update({
-      content: `<div class="${classes.join(" ")}">${renderAnswer(body)}${upsellFooter(meta)}</div>`,
-    });
+    patch.content = `<div class="${classes.join(" ")}">` +
+      `${renderAnswer(body, meta.sources)}` +
+      `${corpusNote(meta, patch.whisper ? author.id : null)}` +
+      `${upsellFooter(meta)}</div>`;
+    await placeholder.update(patch);
   } catch (err) {
     warn("ask_lore failed", err);
     // The BridgeError constructor already logged the cause with its code; this
@@ -2900,12 +3997,41 @@ Hooks.once("ready", async () => {
   // switched on tomorrow, and it should not still be carrying its policy in a
   // format nothing reads any more. Only the elected GM writes, and a failure
   // here must not stop the connection below — the defaults are serviceable.
+  // Read BEFORE `migratePolicy` writes it. A world in which the module has
+  // never completed a ready pass is a world in which it has never run, which is
+  // the only safe signal for "this is a first install" — the setting that
+  // decides which half answers is not, because a GM happy on the default never
+  // writes it and a fresh world is indistinguishable from theirs.
+  const worldIsNew = !setting("policyMigrated");
+
   if (game.users.activeGM?.id === game.user.id) {
     try {
       await migratePolicy();
     } catch (err) {
       warn("access policy migration failed", err);
       record("error", "TV-POLICY-MIGRATE-FAIL", err?.message ?? String(err));
+    }
+
+    // An upgrade is not a first run. Marking it done here is what keeps the
+    // question away from the worlds that already made this choice by living
+    // with it.
+    if (!worldIsNew && !setting("setupDone")) {
+      await adoptPreviousScope();
+      await setSetting("setupDone", true).catch(() => {});
+    } else if (worldIsNew && !setting("setupDone")) {
+      // NOT awaited. The dialog resolves when a person clicks it, which may be
+      // never — and everything below this line is how the module connects and
+      // starts working. Awaiting a human would mean a GM who alt-tabbed away
+      // from the welcome screen came back to a module that had not loaded.
+      firstRunOpen = true;
+      void runFirstRun()
+        .catch(err => {
+          warn("first-run setup failed", err);
+          record("error", "TV-SETUP-FAIL", err?.message ?? String(err));
+        })
+        .finally(() => {
+          firstRunOpen = false;
+        });
     }
   }
 
@@ -2923,8 +4049,9 @@ Hooks.once("ready", async () => {
   if (!activeBridge) {
     // Not an error — a fresh install is simply unpaired, and nagging every GM
     // at every load would be worse than the one notification that tells them
-    // where the button is.
-    ui.notifications.info(t("notify.needsPairing"));
+    // where the button is. Silent while the welcome screen is up, which is
+    // already asking this question in more useful words.
+    if (!firstRunOpen) ui.notifications.info(t("notify.needsPairing"));
     return;
   }
 
@@ -2959,6 +4086,15 @@ globalThis.TusksVault = {
       answerSource: setting("answerSource"),
       liteAnswersEnabled: setting("liteAnswers"),
       liteFolder: setting("liteFolder"),
+      // How many folders the lore tree actually covers. One means either no
+      // subfolders or — before 1.1.0 read the tree — the only number it could
+      // ever report, so a report showing more is also evidence the walk ran.
+      liteFolderCount: loreFolderIds()?.size ?? 0,
+      liteScope: setting("liteScope"),
+      // Whether the scope and the journal permissions combine into the one
+      // arrangement where a note a player wrote can influence an answer drawn
+      // from lore they cannot read.
+      playersMayWriteJournals: (game.users?.filter?.(u => !u.isGM && u.hasPermission?.("JOURNAL_CREATE")) ?? []).length,
       liteModel: setting("liteModel"),
       // The LENGTH, never the key. This dump is written to be pasted into a
       // public issue tracker, and the rule that governs the bridge token
@@ -3054,6 +4190,11 @@ globalThis.TusksVault = {
   events: () => events.slice(),
   pair: runPairing,
   discover: discoverVault,
+  /** Re-run the scope check by hand. It fires on its own when the setting
+   *  changes, but the risky arrangement can also be reached from the other
+   *  side — by granting a player journal permissions long after the scope was
+   *  set — and nothing about that change passes through this module. */
+  checkScope: warnIfScopeIsWideOpen,
   /** Answer from this client's journals, bypassing the chat trigger and the
    *  relay election. The symmetric counterpart to `ask`, and the way a GM
    *  checks that their lore folder is being read at all without spending a

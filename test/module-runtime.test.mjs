@@ -10,7 +10,7 @@
 // does what it says against Foundry's documented contracts. The contracts
 // themselves were read out of Foundry v14's own bundle.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -40,6 +40,7 @@ function installFoundryStubs() {
       replyVisibility: "asker",
       allowedUsers: [],
       policyMigrated: true,
+      setupDone: true,
       triggerCommand: "tusk",
       botName: "Tusk",
       bridgeUrl: "http://127.0.0.1:3000",
@@ -48,6 +49,8 @@ function installFoundryStubs() {
       liteFolder: "Tusk's Lore",
       liteAnswers: false,
       liteModel: "gemini-2.0-flash",
+      liteScope: "all",
+      liteExtraFolders: [],
       geminiKey: "",
     },
     // Journals, and the folder lite reads them out of.
@@ -106,15 +109,56 @@ function installFoundryStubs() {
     find: fn => world.users.find(fn),
   };
 
-  /** A journal entry, shaped the way the module reads one. `visibleTo` is the
-   *  set of user ids allowed to observe it; null means everyone. */
-  globalThis.__journal = (name, text, visibleTo = null) => ({
-    name,
-    uuid: `JournalEntry.${name}`,
-    folder: { id: "f1" },
-    pages: { contents: [{ text: { content: text } }] },
-    testUserPermission: (user, _level) => visibleTo === null || visibleTo.includes(user?.id),
-  });
+  /** Ownership, the way Foundry actually resolves it.
+   *
+   *  `visibleTo` is the set of user ids allowed to observe; null means
+   *  everyone, and on a PAGE it means "inherit", which is the schema default
+   *  (`BaseJournalEntryPage` initialises ownership to INHERIT) and the
+   *  behaviour `Document#getUserLevel` implements — a page's own level wins
+   *  unless it is INHERIT, in which case the parent entry decides. */
+  //  The LEVEL asked for matters, and this stub used to ignore it — answering
+  //  `true` for OWNER as readily as for OBSERVER. That is not what Foundry
+  //  does (`testUserPermission` compares the resolved level against the one
+  //  requested) and it made "can this player EDIT a lore note?" indistinguishable
+  //  from "can they READ one", which are opposite answers for nearly every note
+  //  in a lore folder.
+  const LEVELS = { NONE: 0, LIMITED: 1, OBSERVER: 2, OWNER: 3 };
+
+  /** Everyone listed gets OBSERVER, which is what a GM grants when they share a
+   *  lore note. Nobody is given OWNER implicitly; a test that wants an editable
+   *  document says so. */
+  const levelFor = (visibleTo, user) =>
+    (visibleTo === null || visibleTo.includes(user?.id)) ? LEVELS.OBSERVER : LEVELS.NONE;
+  const observable = (visibleTo, user, level = "OBSERVER") =>
+    levelFor(visibleTo, user) >= (LEVELS[level] ?? LEVELS.OWNER);
+
+  /** A journal entry, shaped the way the module reads one. One page, named
+   *  after the entry, which is what Foundry creates by default. */
+  globalThis.__journal = (name, text, visibleTo = null) =>
+    globalThis.__entry(name, [{ name, text }], visibleTo);
+
+  /** A multi-page entry. Each page may carry its OWN `visibleTo`, which is the
+   *  case entry-level filtering got wrong in both directions before 1.1.0. */
+  globalThis.__entry = (name, pages, visibleTo = null) => {
+    const entry = {
+      name,
+      uuid: `JournalEntry.${name}`,
+      folder: { id: "f1" },
+      testUserPermission: (user, level) => observable(visibleTo, user, level),
+    };
+    entry.pages = {
+      contents: pages.map(page => ({
+        name: page.name,
+        uuid: `JournalEntry.${name}.JournalEntryPage.${page.name}`,
+        text: { content: page.text },
+        testUserPermission: (user, level) =>
+          page.visibleTo === undefined || page.visibleTo === null
+            ? entry.testUserPermission(user, level)   // INHERIT
+            : observable(page.visibleTo, user, level),
+      })),
+    };
+    return entry;
+  };
 
   globalThis.game = {
     get user() {
@@ -125,7 +169,7 @@ function installFoundryStubs() {
     world: { title: "Test Table" },
     system: { id: "dnd5e", version: "5.3.3" },
     modules: new Map([["tusks-vault", { active: true, version: "1.0.0" }]]),
-    folders: { find: fn => world.folders.find(fn) },
+    folders: { find: fn => world.folders.find(fn), filter: fn => world.folders.filter(fn) },
     journal: { filter: fn => world.journals.filter(fn) },
     i18n: { format: key => key },
     settings: {
@@ -165,6 +209,14 @@ function installFoundryStubs() {
       };
       world.created.push(doc);
       return doc;
+    }),
+  };
+
+  globalThis.Folder = {
+    create: vi.fn(async data => {
+      const folder = { id: `folder-${world.folders.length}`, folder: null, ...data };
+      world.folders.push(folder);
+      return folder;
     }),
   };
 
@@ -279,6 +331,7 @@ beforeEach(() => {
   world.settings.replyVisibility = "asker";
   world.settings.allowedUsers = [];
   world.settings.policyMigrated = true;
+  world.settings.setupDone = true;
   world.settings.triggerCommand = "tusk";
   world.settings.botName = "Tusk";
   world.settings.bridgeToken = "test-token";
@@ -286,6 +339,8 @@ beforeEach(() => {
   world.settings.liteFolder = "Tusk's Lore";
   world.settings.liteAnswers = false;
   world.settings.liteModel = "gemini-2.0-flash";
+  world.settings.liteScope = "all";
+  world.settings.liteExtraFolders = [];
   world.settings.geminiKey = "";
   world.folders = [{ id: "f1", type: "JournalEntry", name: "Tusk's Lore" }];
   world.journals = [];
@@ -755,6 +810,268 @@ describe("who sees the answer", () => {
     // audience of an answer differ from who is actually at the table.
     await posted("who runs the harbour?", "p1");
     expect(world.created[0].whisper.sort()).toEqual(["gm", "p1"]);
+  });
+});
+
+describe("upgrading a world that already had a lore scope", () => {
+  // `liteScope` is new, and its default reads the whole folder. Imposing that
+  // on a world already running would mean a GM who had set journal permissions
+  // and relied on them finding, after an update they did not ask for, that the
+  // archivist had started answering players from lore it used to withhold.
+  async function ready() {
+    for (const fn of globalThis.__hooks.get("ready") ?? []) await fn();
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+
+  beforeEach(() => {
+    world.settings.answerSource = "lite";
+    world.settings.setupDone = false;
+    delete world.settings.liteScope;
+  });
+
+  it("pins an existing world to the behaviour it already had", async () => {
+    world.settings.policyMigrated = true;      // the world has run before
+    await ready();
+    expect(world.settings.liteScope).toBe("asker");
+  });
+
+  it("tells the GM once that the setting now exists", async () => {
+    world.settings.policyMigrated = true;
+    await ready();
+    expect(world.notifications.map(n => n[1])).toContain("TUSKS_VAULT.notify.scopePreserved");
+  });
+
+  it("says nothing to a bridge table, which has no lore scope to care about", async () => {
+    world.settings.policyMigrated = true;
+    world.settings.answerSource = "bridge";
+    await ready();
+    expect(world.notifications.map(n => n[1])).not.toContain("TUSKS_VAULT.notify.scopePreserved");
+  });
+
+  it("leaves a brand-new world on the wider default", async () => {
+    // There is no previous behaviour to preserve, and reading the whole folder
+    // is the one that works without configuring ownership entry by entry.
+    world.settings.policyMigrated = false;
+    await ready();
+    expect(world.settings.liteScope ?? "all").toBe("all");
+  });
+
+  it("does not fight a choice the GM makes afterwards", async () => {
+    world.settings.policyMigrated = true;
+    await ready();
+    world.settings.liteScope = "all";          // the GM opts in
+    await ready();                             // and logs in again
+    expect(world.settings.liteScope).toBe("all");
+  });
+});
+
+describe("a setting changed while the settings panel is open", () => {
+  // Foundry's settings form is a snapshot. It reads every value once at render
+  // and, on save, writes back every field it holds — SettingsConfig's submit
+  // handler iterates the whole of formData.object. So a setting written from a
+  // dialog while that form is open is not merely displayed stale: pressing
+  // "Save Module Settings" puts the old value back over the new one.
+  //
+  // Reported from a real game: pick a model in the picker, and the text box
+  // above it still reads the previous one.
+  let fields;
+  let priorDocument;
+
+  beforeEach(() => {
+    fields = new Map();
+    const field = (name, type = "text") => {
+      const el = { name, type, value: "", checked: false, events: [] };
+      el.dispatchEvent = event => { el.events.push(event?.type ?? "change"); return true; };
+      fields.set(name, el);
+      return el;
+    };
+    field("tusks-vault.liteModel").value = "gemini-3.6-flash";
+    field("tusks-vault.answerSource").value = "bridge";
+    field("tusks-vault.liteScope").value = "all";
+
+    priorDocument = globalThis.document;
+    globalThis.document = {
+      ...priorDocument,
+      querySelectorAll: sel => {
+        const m = /^\[name="([^"]+)"\]$/.exec(sel);
+        const el = m && fields.get(m[1]);
+        return el ? [el] : [];
+      },
+    };
+  });
+
+  afterEach(() => { globalThis.document = priorDocument; });
+
+  const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+
+  it("updates the text box the model picker sits above", async () => {
+    world.settings.geminiKey = "test-gemini-key";
+    world.geminiModels = ["gemini-3.6-flash", "gemini-3.8-flash"];
+    const menu = world.menus.get("liteModelPicker");
+    new menu.type().render(true);
+    await settle();
+
+    const dlg = world.dialogs.at(-1);
+    const root = { querySelector: () => ({ value: "gemini-3.8-flash" }) };
+    dlg.config.buttons.find(b => b.action === "save").callback(null, null, { element: root });
+    await settle();
+
+    expect(world.settings.liteModel).toBe("gemini-3.8-flash");
+    expect(fields.get("tusks-vault.liteModel").value).toBe("gemini-3.8-flash");
+  });
+
+  it("keeps the module's own model recovery from being undone by a stray save", async () => {
+    // recoverModel moves the table off a model Google has retired. It fires
+    // mid-session to repair a break, so a settings panel left open reverting it
+    // matters more than the cosmetic case.
+    world.settings.answerSource = "lite";
+    world.settings.liteAnswers = true;
+    world.settings.geminiKey = "test-gemini-key";
+    world.settings.liteModel = "gemini-3.6-flash";
+    world.geminiModels = ["gemini-3.8-flash"];
+    world.geminiErrorQueue = [{ status: 404, body: { error: { message: "is no longer available" } } }];
+    world.journals = [globalThis.__journal("Lore", "<p>The harbour is old.</p>")];
+
+    await posted("tell me about the harbour", "gm");
+    expect(world.settings.liteModel).toBe("gemini-3.8-flash");
+    expect(fields.get("tusks-vault.liteModel").value).toBe("gemini-3.8-flash");
+  });
+
+  it("announces the change, so the live mode switch reveals the right half", async () => {
+    // The welcome screen writes answerSource. If the panel is open behind it,
+    // the dropdown has to move AND the hidden half has to appear.
+    world.settings.policyMigrated = false;
+    world.settings.setupDone = false;
+    for (const fn of globalThis.__hooks.get("ready") ?? []) await fn();
+    await settle();
+
+    const setup = world.dialogs.find(d => d.config?.window?.title === "TUSKS_VAULT.dialog.setup.title");
+    await setup.config.submit("lite");
+    await settle();
+
+    const el = fields.get("tusks-vault.answerSource");
+    expect(el.value).toBe("lite");
+    expect(el.events).toContain("change");
+  });
+
+  it("updates a setting the module migrates on upgrade", async () => {
+    world.settings.policyMigrated = true;
+    world.settings.setupDone = false;
+    delete world.settings.liteScope;
+    for (const fn of globalThis.__hooks.get("ready") ?? []) await fn();
+    await settle();
+    expect(fields.get("tusks-vault.liteScope").value).toBe("asker");
+  });
+
+  it("does not throw when no settings panel is open", async () => {
+    globalThis.document = { ...priorDocument, querySelectorAll: () => [] };
+    world.settings.geminiKey = "test-gemini-key";
+    world.geminiModels = ["gemini-3.8-flash"];
+    const menu = world.menus.get("liteModelPicker");
+    new menu.type().render(true);
+    await settle();
+    const dlg = world.dialogs.at(-1);
+    const root = { querySelector: () => ({ value: "gemini-3.8-flash" }) };
+    dlg.config.buttons.find(b => b.action === "save").callback(null, null, { element: root });
+    await settle();
+    expect(world.settings.liteModel).toBe("gemini-3.8-flash");
+  });
+});
+
+describe("the welcome screen", () => {
+  // A one-click install landed on the bridge, so the first `/tusk` said
+  // "not paired with this world yet -> Connect" -- an instruction to connect to
+  // an application the GM had not downloaded and had been told they would not
+  // need. Flipping the default would have moved every existing bridge table
+  // onto lite on upgrade, because a GM happy on the default never wrote it.
+  async function ready() {
+    for (const fn of globalThis.__hooks.get("ready") ?? []) await fn();
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+  const dialog = () => world.dialogs.at(-1);
+
+  beforeEach(() => {
+    world.settings.policyMigrated = false;
+    world.settings.setupDone = false;
+    world.folders = [];
+    globalThis.Folder.create.mockClear();
+  });
+
+  it("asks in a world the module has never run in", async () => {
+    await ready();
+    expect(dialog()?.config?.window?.title).toBe("TUSKS_VAULT.dialog.setup.title");
+  });
+
+  it("does not ask in a world that has run before", async () => {
+    // An upgrade is not a first run. This is the case that must never regress:
+    // an existing table being asked to re-decide something it settled long ago.
+    world.settings.policyMigrated = true;
+    await ready();
+    expect(world.dialogs).toHaveLength(0);
+    expect(world.settings.setupDone).toBe(true);
+  });
+
+  it("does not ask twice", async () => {
+    await ready();
+    await dialog().config.submit("later");
+    world.dialogs = [];
+    world.settings.policyMigrated = false;
+    await ready();
+    expect(world.dialogs).toHaveLength(0);
+  });
+
+  it("switches to lite and makes the folder", async () => {
+    await ready();
+    await dialog().config.submit("lite");
+    expect(world.settings.answerSource).toBe("lite");
+    expect(globalThis.Folder.create).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Tusk's Lore", type: "JournalEntry" })
+    );
+    expect(world.notifications.map(n => n[1])).toContain("TUSKS_VAULT.notify.setupLiteMade");
+  });
+
+  it("leaves a folder that already exists alone", async () => {
+    world.folders = [{ id: "f1", type: "JournalEntry", name: "Tusk's Lore", folder: null }];
+    await ready();
+    await dialog().config.submit("lite");
+    expect(globalThis.Folder.create).not.toHaveBeenCalled();
+    expect(world.notifications.map(n => n[1])).toContain("TUSKS_VAULT.notify.setupLiteReady");
+  });
+
+  it("still turns lite on when the folder cannot be created", async () => {
+    globalThis.Folder.create.mockRejectedValueOnce(new Error("nope"));
+    await ready();
+    await dialog().config.submit("lite");
+    expect(world.settings.answerSource).toBe("lite");
+    expect(world.settings.setupDone).toBe(true);
+  });
+
+  it("goes straight to pairing when the GM already has Vault", async () => {
+    await ready();
+    await dialog().config.submit("bridge");
+    expect(world.settings.answerSource).toBe("bridge");
+    expect(world.dialogs.some(d => d.config?.window?.title === "TUSKS_VAULT.dialog.pairing.title")).toBe(true);
+  });
+
+  it("remembers a deferral, and changes nothing else", async () => {
+    await ready();
+    await dialog().config.submit("later");
+    expect(world.settings.setupDone).toBe(true);
+    expect(world.settings.answerSource).toBe("bridge");
+    expect(globalThis.Folder.create).not.toHaveBeenCalled();
+  });
+
+  it("treats dismissing the window as deferring", async () => {
+    await ready();
+    dialog().config.close();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(world.settings.setupDone).toBe(true);
+  });
+
+  it("does not tell the GM to go and pair while the screen is open", async () => {
+    // The welcome screen is already asking that question, in better words.
+    await ready();
+    expect(world.notifications.map(n => n[1])).not.toContain("TUSKS_VAULT.notify.needsPairing");
   });
 });
 
@@ -1274,11 +1591,12 @@ describe("lite tells a GM when the key is on another machine", () => {
   });
 
   it("says nothing when the table simply has answers switched off", async () => {
-    // Not a misconfiguration — a choice. The ordinary upsell line covers it.
+    // Not a misconfiguration — a choice. Nothing is wrong, so nothing is said:
+    // neither the missing-key warning nor the line about the full application.
     world.settings.liteAnswers = false;
     const html = await ask();
     expect(world.notifications.map(n => n[1])).not.toContain("TUSKS_VAULT.notify.liteKeyMissingHere");
-    expect(html).toContain("TUSKS_VAULT.lite.footer");
+    expect(html).not.toContain("TUSKS_VAULT.lite.footerNoKey");
   });
 });
 
@@ -1352,25 +1670,42 @@ describe("the link to the full application", () => {
     world.journals = [globalThis.__journal("Harbour Master", "<p>Ilsabet Corrow holds the lease.</p>")];
   });
 
-  it("is a real link on a lite answer", async () => {
-    await posted("who holds the lease?", "gm");
+  // Since 1.1.0 the line is EARNED rather than automatic. An advertisement
+  // under every answer forever is what makes a free tier read as a trial, so it
+  // appears only where the table has actually met a limit lite has and Vault
+  // does not. These tests pin both halves of that, because "shows sometimes" is
+  // indistinguishable from "shows at random" without them.
+
+  it("is a real link when the archive could not answer", async () => {
+    await posted("who governs the salt marshes?", "gm");
     const html = world.created.at(-1).content;
     expect(html).toContain('<a href="https://kochitusker.github.io/Tusks-Vault/">');
     expect(html).toContain("tusks-vault-upsell");
   });
 
-  it("is on a written answer too, not only a search result", async () => {
-    // The reader who set up a key has already paid the effort cost and is the
-    // likeliest to move up; the pitch still applies to them.
-    world.settings.liteAnswers = true;
-    world.settings.geminiKey = "test-gemini-key";
-    await posted("who holds the lease?", "gm");
-    expect(world.created.at(-1).content).toContain("tusks-vault-upsell");
+  it("carries the source repository as well as the guide", async () => {
+    await posted("who governs the salt marshes?", "gm");
+    expect(world.created.at(-1).content).toContain('href="https://github.com/KochiTusker/Tusks-Vault"');
   });
 
-  it("carries the source repository as well as the guide", async () => {
+  it("stays off an answer that simply worked", async () => {
+    // The whole point of the change. Nothing went wrong, nothing was missing,
+    // so the card says nothing about the other product.
     await posted("who holds the lease?", "gm");
-    expect(world.created.at(-1).content).toContain('href="https://github.com/KochiTusker/Tusks-Vault"');
+    expect(world.created.at(-1).content).not.toContain("tusks-vault-upsell");
+  });
+
+  it("appears on a written answer when the corpus did not fit", async () => {
+    world.settings.liteAnswers = true;
+    world.settings.geminiKey = "test-gemini-key";
+    // Two documents, one of them far larger than the whole prompt budget, so
+    // the cap is genuinely reached rather than simulated.
+    world.journals = [
+      globalThis.__journal("Harbour Master", "<p>Ilsabet Corrow holds the lease.</p>"),
+      globalThis.__journal("Ledgers", `<p>${"lease ".repeat(30000)}</p>`),
+    ];
+    await posted("who holds the lease?", "gm");
+    expect(world.created.at(-1).content).toContain("tusks-vault-upsell");
   });
 
   it("is not added to a bridge answer", async () => {
@@ -1383,7 +1718,7 @@ describe("the link to the full application", () => {
   it("survives the escaping that everything else goes through", async () => {
     // The proof that the footer is assembled outside renderAnswer: an escaped
     // link would arrive as &lt;a href=…
-    await posted("who holds the lease?", "gm");
+    await posted("who governs the salt marshes?", "gm");
     expect(world.created.at(-1).content).not.toContain("&lt;a href");
   });
 });
@@ -1391,6 +1726,9 @@ describe("the link to the full application", () => {
 describe("lite mode: the corpus is scoped to the asker", () => {
   beforeEach(() => {
     world.settings.answerSource = "lite";
+    // Ownership filtering is opt-in since the default changed; these tests
+    // are about what it does when a GM has turned it on.
+    world.settings.liteScope = "asker";
     world.users = [
       makeUser("gm", "The GM", ROLES.GAMEMASTER),
       makeUser("p1", "A Player", ROLES.PLAYER),
@@ -1430,6 +1768,467 @@ describe("lite mode: the corpus is scoped to the asker", () => {
     expect(html).toContain("TUSKS_VAULT.lite.noFolder");
     expect(html).toContain("TV-LITE-NOCORPUS");
     expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("lite mode: a page is the unit, not the entry", () => {
+  // The bug this replaced was the module's own headline claim being false.
+  // Lite.md promised "the entry never enters the corpus for that person at
+  // all"; a GM-only PAGE inside a shared entry was concatenated into the
+  // player's corpus anyway, because only the entry was ever asked.
+  beforeEach(() => {
+    world.settings.answerSource = "lite";
+    // Page-level ownership only decides anything when ownership is being read
+    // at all, which is opt-in since the default changed.
+    world.settings.liteScope = "asker";
+    world.users = [
+      makeUser("gm", "The GM", ROLES.GAMEMASTER),
+      makeUser("p1", "A Player", ROLES.PLAYER),
+    ];
+  });
+
+  async function answer(question, asker) {
+    await posted(question, asker);
+    return world.created.at(-1).content;
+  }
+
+  const npcs = () => [
+    globalThis.__entry("NPCs", [
+      { name: "Anser", text: "<p>Anser keeps the teahouse.</p>" },
+      { name: "Pell", text: "<p>Pell is the traitor.</p>", visibleTo: ["gm"] },
+    ]),
+  ];
+
+  it("keeps a GM-only page out of a player's answer, inside an entry they can read", async () => {
+    world.journals = npcs();
+    expect(await answer("who is the traitor", "p1")).not.toContain("traitor");
+  });
+
+  it("still answers the GM from that page", async () => {
+    world.journals = npcs();
+    expect(await answer("who is the traitor", "gm")).toContain("traitor");
+  });
+
+  it("includes a page shared with one player inside an entry they cannot open", async () => {
+    // The other direction, and the one that makes player-authored backstories
+    // work: entry-level filtering excluded this, because it never looked.
+    world.journals = [
+      globalThis.__entry("Backstories", [
+        { name: "Doria", text: "<p>Doria was raised by wreckers.</p>", visibleTo: ["p1"] },
+      ], ["gm"]),
+    ];
+    expect(await answer("who raised Doria", "p1")).toContain("wreckers");
+  });
+
+  it("cites the page rather than the journal it sits in", async () => {
+    world.journals = npcs();
+    expect(await answer("who keeps the teahouse", "gm")).toContain("NPCs: Anser");
+  });
+
+  it("does not repeat the name when an entry has a single page", async () => {
+    world.journals = [globalThis.__journal("Harbour Master", "<p>Ilsabet holds the lease.</p>")];
+    const html = await answer("who holds the lease", "gm");
+    expect(html).toContain("Harbour Master");
+    expect(html).not.toContain("Harbour Master: Harbour Master");
+  });
+
+  it("makes a citation a link to the page it names", async () => {
+    world.journals = [globalThis.__journal("Harbour Master", "<p>Ilsabet holds the lease.</p>")];
+    const html = await answer("who holds the lease", "gm");
+    // Foundry binds one delegated handler to a[data-link] on the body, and a
+    // page uuid opens the journal AT that page.
+    expect(html).toContain("content-link");
+    expect(html).toContain('data-uuid="JournalEntry.Harbour Master.JournalEntryPage.Harbour Master"');
+  });
+
+  it("marks a citation the model invented rather than linking it", async () => {
+    world.settings.liteAnswers = true;
+    world.settings.geminiKey = "test-gemini-key";
+    world.journals = [globalThis.__journal("Harbour Master", "<p>Ilsabet holds the lease.</p>")];
+    world.geminiResult = {
+      candidates: [{ content: { parts: [{ text: "She answers to the council [Council Minutes]." }] } }],
+    };
+    const html = await answer("who holds the lease", "gm");
+    expect(html).toContain("is-unverified");
+  });
+});
+
+describe("lite mode: reading a folder means reading the tree", () => {
+  beforeEach(() => {
+    world.settings.answerSource = "lite";
+    // Tusk's Lore -> NPCs -> Deep. Organising notes into subfolders is the
+    // ordinary thing to do with a folder; before 1.1.0 it produced an empty
+    // corpus and an error telling the GM to create a folder they already had.
+    world.folders = [
+      { id: "f1", type: "JournalEntry", name: "Tusk's Lore", folder: null },
+      { id: "f2", type: "JournalEntry", name: "NPCs", folder: { id: "f1" } },
+      { id: "f3", type: "JournalEntry", name: "Deep", folder: { id: "f2" } },
+    ];
+  });
+
+  async function answerFrom(folderId) {
+    const entry = globalThis.__journal("Note", "<p>Ilsabet holds the lease.</p>");
+    entry.folder = { id: folderId };
+    world.journals = [entry];
+    await posted("who holds the lease", "gm");
+    return world.created.at(-1).content;
+  }
+
+  it("reads an entry one level down", async () => {
+    expect(await answerFrom("f2")).toContain("Ilsabet");
+  });
+
+  it("reads an entry nested arbitrarily deep", async () => {
+    expect(await answerFrom("f3")).toContain("Ilsabet");
+  });
+
+  it("does not read a folder outside the lore tree", async () => {
+    world.folders.push({ id: "f9", type: "JournalEntry", name: "Elsewhere", folder: null });
+    expect(await answerFrom("f9")).toContain("TV-LITE-NOCORPUS");
+  });
+});
+
+describe("lite mode: reading folders the GM already had", () => {
+  // The wall a new install actually hits. The welcome screen makes the lore
+  // folder, and then the GM is looking at notes they have kept for two years
+  // with no way forward but moving all of it. Most people stop there.
+  beforeEach(() => {
+    world.settings.answerSource = "lite";
+    world.folders = [
+      { id: "f1", type: "JournalEntry", name: "Tusk's Lore", folder: null },
+      { id: "old", type: "JournalEntry", name: "My NPCs", folder: null },
+      { id: "oldsub", type: "JournalEntry", name: "Villains", folder: { id: "old" } },
+    ];
+    const kept = globalThis.__journal("Dockwarden", "<p>Ilsabet holds the lease.</p>");
+    kept.folder = { id: "old" };
+    const nested = globalThis.__journal("The Rival", "<p>Vantre runs the smugglers.</p>");
+    nested.folder = { id: "oldsub" };
+    world.journals = [kept, nested];
+  });
+
+  async function answer(question) {
+    await posted(question, "gm");
+    return world.created.at(-1).content;
+  }
+
+  it("ignores a folder that was never picked", async () => {
+    expect(await answer("who holds the lease")).toContain("TV-LITE-NOCORPUS");
+  });
+
+  it("reads a folder the GM ticked", async () => {
+    world.settings.liteExtraFolders = ["old"];
+    expect(await answer("who holds the lease")).toContain("Ilsabet");
+  });
+
+  it("reads what is nested inside it too", async () => {
+    world.settings.liteExtraFolders = ["old"];
+    expect(await answer("who runs the smugglers")).toContain("Vantre");
+  });
+
+  it("still reads the named lore folder alongside it", async () => {
+    const own = globalThis.__journal("Harbour", "<p>The harbour is old.</p>");
+    own.folder = { id: "f1" };
+    world.journals.push(own);
+    world.settings.liteExtraFolders = ["old"];
+    expect(await answer("tell me about the harbour")).toContain("harbour is old");
+  });
+
+  it("shrugs off an id for a folder that has since been deleted", async () => {
+    // A GM who ticks a folder and later deletes it must not get an error, or a
+    // tidy-up in the Journals sidebar breaks the archivist with no clue why.
+    world.settings.liteExtraFolders = ["old", "deleted-long-ago"];
+    expect(await answer("who holds the lease")).toContain("Ilsabet");
+  });
+
+  it("works with no lore folder at all, if a folder was picked", async () => {
+    world.folders = world.folders.filter(f => f.id !== "f1");
+    world.settings.liteExtraFolders = ["old"];
+    expect(await answer("who holds the lease")).toContain("Ilsabet");
+  });
+
+  it("saves what was ticked", async () => {
+    const menu = world.menus.get("liteFolders");
+    const app = new menu.type();
+    app.render(true);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const dlg = world.dialogs.at(-1);
+    expect(dlg.config.window.title).toBe("TUSKS_VAULT.dialog.folders.title");
+    // The dialog's own markup is what the save callback reads.
+    const root = {
+      querySelectorAll: () => [{ value: "old" }],
+    };
+    await dlg.config.buttons.find(b => b.action === "save").callback(null, null, { element: root });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(world.settings.liteExtraFolders).toEqual(["old"]);
+  });
+});
+
+describe("the help screens", () => {
+  const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+  async function open(key) {
+    const menu = world.menus.get(key);
+    new menu.type().render(true);
+    await settle();
+    return world.dialogs.at(-1);
+  }
+
+  it("opens the FAQ", async () => {
+    const dlg = await open("faq");
+    expect(dlg.config.window.title).toBe("TUSKS_VAULT.dialog.faq.title");
+  });
+
+  it("lets a player open the FAQ, because a player is often the one stuck", async () => {
+    expect(world.menus.get("faq").restricted).toBe(false);
+  });
+
+  it("opens About, and offers the diagnostics report a bug can be filed with", async () => {
+    const dlg = await open("about");
+    expect(dlg.config.window.title).toBe("TUSKS_VAULT.dialog.about.title");
+    expect(dlg.config.content).toContain("tusks-vault-copy-diagnostics");
+  });
+
+  it("keeps the support link to About and nowhere else", async () => {
+    // It is there to be found by somebody who went looking, not noticed by
+    // somebody who did not.
+    const about = await open("about");
+    expect(about.config.content).toContain("buymeacoffee.com");
+    const faq = await open("faq");
+    expect(faq.config.content).not.toContain("buymeacoffee.com");
+  });
+
+  it("opens the lore permissions review", async () => {
+    const dlg = await open("lorePermissions");
+    expect(dlg.config.window.title).toBe("TUSKS_VAULT.dialog.perms.title");
+  });
+});
+
+describe("lite mode: what each answer may draw on", () => {
+  // The default here is decided by a FOUNDRY default, not a preference.
+  // `DocumentOwnershipField` initialises to {default: NONE}, so a journal entry
+  // a GM creates is invisible to players until somebody opens the ownership
+  // dialog for it. Scoping by ownership out of the box therefore does not
+  // produce careful per-player answers — it produces "I could not find
+  // anything" for every player question in every world where that work has not
+  // been done, which is most of them.
+  beforeEach(() => {
+    world.settings.answerSource = "lite";
+    world.users = [
+      makeUser("gm", "The GM", ROLES.GAMEMASTER),
+      makeUser("p1", "Player One", ROLES.PLAYER),
+      makeUser("p2", "Player Two", ROLES.PLAYER),
+    ];
+    world.journals = [
+      globalThis.__journal("Open Lore", "<p>The harbour is old.</p>"),
+      // Foundry's own default for a new entry: nobody but the GM.
+      globalThis.__journal("A Secret", "<p>Cape Tern hides a smugglers' run.</p>", ["gm"]),
+      globalThis.__journal("One Player's Note", "<p>Doria keeps a key to the tide gate.</p>", ["gm", "p1"]),
+    ];
+  });
+
+  async function answer(question, asker) {
+    await posted(question, asker);
+    return world.created.at(-1).content;
+  }
+
+  it("answers a player out of the box, from everything in the folder", async () => {
+    // THE REGRESSION TEST FOR THE DEFAULT. A GM who makes a folder, drops notes
+    // in and lets their table ask must get answers without configuring
+    // ownership for a single entry.
+    expect(await answer("what is at Cape Tern?", "p2")).toContain("smugglers");
+  });
+
+  it("answers every asker the same way by default", async () => {
+    expect(await answer("who keeps a key to the tide gate?", "p1")).toContain("tide gate");
+    expect(await answer("who keeps a key to the tide gate?", "p2")).toContain("tide gate");
+  });
+
+  it("treats an unrecognised setting as the default rather than as scoping", async () => {
+    // A value from a hand-edited world, or a setting this version does not know,
+    // must not silently switch a table into a mode it did not choose.
+    world.settings.liteScope = "nonsense-from-somewhere";
+    expect(await answer("what is at Cape Tern?", "p2")).toContain("smugglers");
+  });
+
+  it("asker scope answers two players differently", async () => {
+    world.settings.liteScope = "asker";
+    expect(await answer("who keeps a key to the tide gate?", "p1")).toContain("tide gate");
+    expect(await answer("who keeps a key to the tide gate?", "p2")).not.toContain("tide gate");
+  });
+
+  it("asker scope keeps a GM-only note away from everyone", async () => {
+    world.settings.liteScope = "asker";
+    expect(await answer("what is at Cape Tern?", "p1")).not.toContain("smugglers");
+  });
+
+  it("shared scope withholds what only one player can open", async () => {
+    world.settings.liteScope = "shared";
+    expect(await answer("who keeps a key to the tide gate?", "p1")).not.toContain("tide gate");
+    expect(await answer("tell me about the harbour", "p1")).toContain("harbour is old");
+  });
+});
+
+describe("a document that cannot say whether it may be read", () => {
+  // Found by fuzzing the built artifact with malformed world data. A page whose
+  // testUserPermission throws used to take the whole answer down with it, and
+  // the GM got an error card instead of an answer built from the other
+  // ninety-nine pages that were fine.
+  beforeEach(() => {
+    world.settings.answerSource = "lite";
+    world.settings.liteScope = "asker";
+    world.users = [
+      makeUser("gm", "The GM", ROLES.GAMEMASTER),
+      makeUser("p1", "A Player", ROLES.PLAYER),
+    ];
+  });
+
+  function withBrokenPage() {
+    const entry = globalThis.__entry("Mixed", [
+      { name: "Broken", text: "<p>The harbour is old.</p>" },
+      { name: "Fine", text: "<p>Ilsabet holds the lease.</p>" },
+    ]);
+    entry.pages.contents[0].testUserPermission = () => { throw new Error("boom"); };
+    world.journals = [entry];
+  }
+
+  it("still answers from the pages that are fine", async () => {
+    withBrokenPage();
+    await posted("who holds the lease", "p1");
+    expect(world.created.at(-1).content).toContain("Ilsabet");
+  });
+
+  it("excludes the page it could not evaluate, rather than trusting it", async () => {
+    // Fail CLOSED. This is a permission check, so an exception has to mean no.
+    withBrokenPage();
+    await posted("tell me about the harbour", "p1");
+    expect(world.created.at(-1).content).not.toContain("The harbour is old");
+  });
+
+  it("records it, so a GM can find out why a note is never cited", async () => {
+    withBrokenPage();
+    await posted("who holds the lease", "p1");
+    expect(globalThis.TusksVault.events().map(e => e.code)).toContain("TV-LITE-PERM-FAIL");
+  });
+});
+
+describe("the warning about a folder players can edit", () => {
+  // Text in the lore folder goes INTO the prompt, so whoever can edit a note
+  // can write instructions the model reads. Under a scoping mode that is
+  // contained by construction. Under the default it is not.
+  beforeEach(() => {
+    world.settings.answerSource = "lite";
+    world.users = [
+      makeUser("gm", "The GM", ROLES.GAMEMASTER),
+      makeUser("p1", "Player One", ROLES.PLAYER),
+    ];
+    world.journals = [globalThis.__journal("Open Lore", "<p>The harbour is old.</p>")];
+  });
+
+  /** A journal entry a player can edit, which is what Foundry gives the creator
+   *  of one automatically. */
+  function playerOwned(name) {
+    const entry = globalThis.__journal(name, "<p>Something a player wrote.</p>");
+    entry.testUserPermission = (user, level) => user?.isGM || (user?.id === "p1" && level === "OWNER");
+    return entry;
+  }
+
+  it("fires when a player can edit something in the folder", () => {
+    world.journals.push(playerOwned("A Backstory"));
+    expect(globalThis.TusksVault.checkScope()).toBe(true);
+    expect(world.notifications.map(n => n[1])).toContain("TUSKS_VAULT.notify.scopeWideOpen");
+  });
+
+  it("stays quiet when players can only read", () => {
+    // The ordinary case, and the whole point of the folder. Warning here would
+    // fire on nearly every world and be ignored on the one where it matters.
+    expect(globalThis.TusksVault.checkScope()).toBe(false);
+  });
+
+  it("stays quiet under a scoping mode, even with a player-editable note", () => {
+    world.journals.push(playerOwned("A Backstory"));
+    world.settings.liteScope = "asker";
+    expect(globalThis.TusksVault.checkScope()).toBe(false);
+  });
+
+  it("stays quiet when there is no lore folder to read", () => {
+    world.folders = [];
+    expect(globalThis.TusksVault.checkScope()).toBe(false);
+  });
+});
+
+describe("an answer drawn from private notes is not posted to the table", () => {
+  // Scoping bounds what goes INTO an answer and says nothing about who reads
+  // what comes out. With "Everyone, in the open" the two settings cancelled:
+  // a player's own backstory was retrieved correctly, then published.
+  beforeEach(() => {
+    world.settings.answerSource = "lite";
+    world.settings.replyVisibility = "public";
+    // The guard is gated on scoping being on. Under the default the GM has said
+    // "read everything" and "post in the open", and overriding the second
+    // because the first did as it was told is two settings fighting.
+    world.settings.liteScope = "asker";
+    world.users = [
+      makeUser("gm", "The GM", ROLES.GAMEMASTER),
+      makeUser("p1", "Player One", ROLES.PLAYER),
+      makeUser("p2", "Player Two", ROLES.PLAYER),
+    ];
+  });
+
+  it("whispers instead, and says why", async () => {
+    world.journals = [
+      globalThis.__journal("A Secret", "<p>Doria was raised by wreckers.</p>", ["gm", "p1"]),
+    ];
+    await posted("who raised Doria", "p1");
+    const card = world.created.at(-1);
+    expect(card.whisper).toEqual(expect.arrayContaining(["p1", "gm"]));
+    expect(card.whisper).not.toContain("p2");
+    expect(card.content).toContain("TUSKS_VAULT.chat.answeredPrivately");
+  });
+
+  it("leaves a public answer public when every source is public", async () => {
+    world.journals = [globalThis.__journal("Open Lore", "<p>The harbour is old.</p>")];
+    await posted("tell me about the harbour", "p1");
+    const card = world.created.at(-1);
+    expect(card.whisper).toEqual([]);
+    expect(card.content).not.toContain("TUSKS_VAULT.chat.answeredPrivately");
+  });
+});
+
+describe("the corpus cap is reported rather than enforced in silence", () => {
+  beforeEach(() => {
+    world.settings.answerSource = "lite";
+    world.settings.liteAnswers = true;
+    world.settings.geminiKey = "test-gemini-key";
+  });
+
+  it("sends a window of the big document rather than dropping it", async () => {
+    // The failure this replaced: the one document holding the answer was
+    // skipped whole, the model was sent the leftovers, and it correctly
+    // reported a lore gap while the passage sat in the discarded note.
+    world.journals = [
+      globalThis.__journal("Streets", "<p>Lantern Row runs down to the harbour.</p>"),
+      globalThis.__journal("Session Logs",
+        `<p>Ilsabet Corrow runs the harbour. ${"Filler about the docks. ".repeat(6000)}</p>`),
+    ];
+    await posted("who runs the harbour?", "gm");
+    const body = JSON.parse(globalThis.fetch.mock.calls.at(-1)[1].body);
+    const prompt = body.contents[0].parts[0].text;
+    expect(prompt).toContain("Ilsabet Corrow runs the harbour");
+    expect(prompt).toContain("[SOURCE: Session Logs]");
+  });
+
+  it("says on the card that it could not read everything", async () => {
+    world.journals = [
+      globalThis.__journal("Session Logs",
+        `<p>Ilsabet Corrow runs the harbour. ${"Filler about the docks. ".repeat(6000)}</p>`),
+    ];
+    await posted("who runs the harbour?", "gm");
+    expect(world.created.at(-1).content).toContain("TUSKS_VAULT.lite.corpusCapped");
+  });
+
+  it("says nothing when the whole corpus fit", async () => {
+    world.journals = [globalThis.__journal("Harbour Master", "<p>Ilsabet holds the lease.</p>")];
+    await posted("who holds the lease?", "gm");
+    expect(world.created.at(-1).content).not.toContain("TUSKS_VAULT.lite.corpusCapped");
   });
 });
 

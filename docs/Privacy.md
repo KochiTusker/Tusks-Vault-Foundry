@@ -13,7 +13,7 @@ about data flow.
 
 **Nothing leaves your machine. There is no network request at all.**
 
-The module reads journal entries from one folder in your world, ranks them
+The module reads journal entries from the folders you point it at, ranks them
 against your question in the browser, and posts the matching passages to chat.
 No provider, no key, no request. This is the default a fresh install runs in.
 
@@ -29,13 +29,14 @@ journal text   ─┘         (your key)
 
 When you turn on *Lite: write answers* and set a Gemini key:
 
-**What is sent:** your question, and the text of journal entries from your lore
-folder — as many as fit the size cap, best matches first. Each is labelled with
-its journal name so the model can cite it.
+**What is sent:** your question, and the text of journal pages from your lore
+folders — as many as fit the size cap, best matches first. Each is labelled with
+its page name so the model can cite it.
 
-**What is not sent:** journal entries the person asking cannot open, anything
-outside the lore folder, your world name, your players' names, and your
-Foundry address. The asker's identity is not sent either.
+**What is not sent:** anything outside the lore folders, your world name, your
+players' names, and your Foundry address. The asker's identity is not sent
+either. If you have switched on per-player scoping, pages the person asking
+cannot open are not sent for their questions.
 
 **Where it goes:** from the GM's browser straight to Google's API over TLS.
 There is no intermediate server, and nothing passes through the maintainer's
@@ -133,8 +134,9 @@ audit your network, this is the complete list:
 |---|---|---|
 | `127.0.0.1` (ports 3000–3019) | Bridge mode only | Finding and talking to Tusk's Vault on your own machine. Never leaves the machine. |
 | `generativelanguage.googleapis.com` | Lite layer 2 only | Your question and the selected journal text, and listing which models your key can use. |
-| `kochitusker.github.io` | Never automatically | A link the module renders on lite answers and in the upgrade screen. Your browser contacts it only if you click it. |
+| `kochitusker.github.io` | Never automatically | A link the module renders on lite answers and on the upgrade, FAQ and About screens. Your browser contacts it only if you click it. |
 | `github.com` | Never automatically | The same, for the source repository. Only contacted if you click it. |
+| `buymeacoffee.com` | Never automatically | A link on the **About** screen, for anyone who goes looking for a way to support the project. Nothing renders it anywhere else, and your browser contacts it only if you click it. |
 
 Lite layer 1 contacts nothing. A fresh install, before you pair or set a key,
 contacts nothing.

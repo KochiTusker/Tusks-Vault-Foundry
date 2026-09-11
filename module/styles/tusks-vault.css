@@ -279,6 +279,49 @@
   border-style: dashed;
 }
 
+/* A citation naming something that was NOT in the prompt. In lite mode the
+   module knows exactly which pages it sent, so a marker for anything else is
+   either the model inventing a source or a page the asker cannot open — and
+   both deserve to look different from a citation that checks out. Dashed and
+   struck, so it reads as unbacked without relying on hue.
+
+   Never emitted for a Vault answer: the bridge supplies no index, and no index
+   means no claim either way. */
+.tusks-vault-answer .tusks-vault-cite.is-unverified {
+  --tv-chip: var(--tv-speculation);
+  border-style: dashed;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  opacity: 0.85;
+}
+
+/* A citation that DOES check out is a link to the page it names — Foundry binds
+   the click itself, and a page uuid opens the journal at that page. It has to
+   keep looking like a chip rather than inheriting the sheet's link styling. */
+.tusks-vault-answer a.tusks-vault-cite.is-source {
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tusks-vault-answer a.tusks-vault-cite.is-source:hover {
+  background: color-mix(in srgb, var(--tv-chip) calc(var(--tv-wash) * 2), transparent);
+  border-color: var(--tv-chip);
+}
+
+.tusks-vault-answer a.tusks-vault-cite.is-source i {
+  margin-inline-end: 0.3em;
+  font-size: 0.9em;
+  opacity: 0.75;
+}
+
+/* Something the module wants to say about the answer, as opposed to something
+   the archive said. Quieter than the answer, louder than nothing. */
+.tusks-vault-answer .tusks-vault-note {
+  margin-top: 0.5em;
+  font-style: italic;
+  opacity: 0.8;
+}
+
 /* ── Card states ──────────────────────────────────────────────────────────── */
 
 /* A recorded lore gap is the archive saying "I do not know this yet" — worth
@@ -528,4 +571,122 @@
   padding: 0.5em 0.7em;
   border-left: 3px solid color-mix(in srgb, currentColor 30%, transparent);
   border-radius: 0;
+}
+
+/* ── About, and the lore permissions review ───────────────────────────────── */
+
+.tusks-vault-about-table,
+.tusks-vault-perms-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5em 0;
+}
+
+.tusks-vault-about-table th,
+.tusks-vault-about-table td,
+.tusks-vault-perms-table th,
+.tusks-vault-perms-table td {
+  padding: 0.3em 0.5em;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+}
+
+.tusks-vault-about-table th,
+.tusks-vault-perms-table thead th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tusks-vault-about h4 {
+  margin: 1em 0 0.3em;
+  border: 0;
+}
+
+.tusks-vault-about-links {
+  line-height: 1.9;
+}
+
+/* The support line. Deliberately the quietest thing in the dialog: it is here
+   to be findable by somebody who went looking, not to be noticed by somebody
+   who did not. No button, no colour, no icon. */
+.tusks-vault-support {
+  font-size: 0.9em;
+  opacity: 0.75;
+}
+
+/* Who an answer can reach. The three states are what a GM is scanning for, so
+   they are distinguishable by weight and a leading rule as well as by their
+   text — the table is read down the right-hand column, not across. */
+.tusks-vault-perms-table tbody tr.is-gm td {
+  font-weight: 600;
+}
+
+.tusks-vault-perms-table tbody tr.is-some td {
+  font-style: italic;
+}
+
+.tusks-vault-perms-table tbody tr.is-all td {
+  opacity: 0.75;
+}
+
+/* ── The welcome screen ───────────────────────────────────────────────────── */
+
+/* Two options, each a block rather than a line, because the choice being made
+   is the one the rest of the module depends on and the GM making it has been
+   using this software for about four seconds. */
+.tusks-vault-setup-option {
+  margin: 0.75em 0;
+  padding: 0.6em 0.8em;
+  border-left: 3px solid color-mix(in srgb, currentColor 25%, transparent);
+  background: color-mix(in srgb, currentColor 4%, transparent);
+}
+
+.tusks-vault-setup-option h4 {
+  margin: 0 0 0.25em;
+  border: 0;
+  font-weight: 700;
+}
+
+.tusks-vault-setup-option p {
+  margin: 0;
+  font-size: 0.95em;
+}
+
+/* ── The FAQ ──────────────────────────────────────────────────────────────── */
+
+/* Collapsed by default, one line each. A dozen questions shown open is a wall
+   of text nobody scans; a dozen summaries is a list somebody can find their own
+   problem in, which is the whole job. */
+.tusks-vault-faq-item {
+  margin: 0.35em 0;
+  padding: 0.35em 0.5em;
+  border-left: 2px solid color-mix(in srgb, currentColor 20%, transparent);
+  background: color-mix(in srgb, currentColor 3%, transparent);
+}
+
+.tusks-vault-faq-item > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.tusks-vault-faq-item > summary:hover {
+  text-decoration: underline;
+}
+
+.tusks-vault-faq-item p {
+  margin: 0.4em 0 0;
+  font-size: 0.95em;
+}
+
+.tusks-vault-faq-link {
+  font-size: 0.9em;
+}
+
+/* The folder picker reuses the allow list's rows, and wants the same ceiling —
+   a world with thirty journal folders must not produce a dialog taller than
+   the screen. */
+.tusks-vault-allow-list {
+  max-height: 22em;
+  overflow-y: auto;
 }

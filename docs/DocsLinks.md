@@ -22,7 +22,7 @@ change.** Every URL below is referenced from a file that ships to strangers.
 | `https://kochitusker.github.io/Tusks-Vault/` | `module.json` → `url` and `description`; `README.md` throughout | The documentation site's landing page. Foundry shows `url` in the package browser as the package's website, so this is where an installer arrives from inside Foundry. It has to explain, above the fold, that Tusk's Vault is a separate app they need to install. |
 | `https://kochitusker.github.io/Tusks-Vault/docs/surfaces/foundry-vtt/` | `module.json` → `readme` | The Foundry tutorial: installing Vault, switching the Foundry surface on, pairing, asking, and the access settings. Foundry links this as the package's readme. |
 | `https://github.com/KochiTusker/Tusks-Vault` | `README.md`, `Troubleshooting.md` | The Vault source repository. |
-| `https://github.com/KochiTusker/Tusks-Vault-Foundry` | `module.json` → `license`, `bugs`, `changelog`, `manifest`, `download` | This repository, public. See [RELEASING.md](../RELEASING.md). |
+| `https://github.com/KochiTusker/Tusks-Vault-Foundry` | `module.json` → `license`, `bugs`, `manifest`, `download` | This repository, public. See [RELEASING.md](../RELEASING.md). |
 
 ### Deep links, from the Markdown pages only
 
@@ -37,6 +37,33 @@ page rather than a dead end inside Foundry. They still ship to strangers.
 | `…/docs/lore/obsidian-vault/` | `README.md` | Pointing Vault at notes you already keep. |
 | `…/docs/troubleshooting/faq/` | `Troubleshooting.md` | Vault's own FAQ. |
 | `…/docs/troubleshooting/known-issues/` | `Troubleshooting.md` | Vault's known issues. |
+
+### This repository's own pages, linked from inside Foundry
+
+The **FAQ** and **About** screens link straight out of the module's settings, so
+these `docs/` pages are reachable from inside a stranger's game and are compiled
+into a release exactly like the site links above. A renamed heading here is a
+link that lands on the top of the right page rather than the wrong section —
+survivable, unlike a 404, but still a change to make deliberately.
+
+| URL | Referenced from | What has to be there |
+|---|---|---|
+| `…/Tusks-Vault-Foundry/blob/main/docs/Troubleshooting.md` | FAQ screen, twice, including the anchors `#foundry-says-the-command-is-not-valid` and `#nothing-happens-or-the-question-just-sits-there` | Every error code and its fix. |
+| `…/Tusks-Vault-Foundry/blob/main/docs/Lite.md` | FAQ screen, anchors `#the-folder`, `#what-a-key-in-the-browser-means`, `#only-the-gms-browser-ever-holds-the-key`, `#letting-players-add-their-own-lore` | Lite in full. |
+| `…/Tusks-Vault-Foundry/blob/main/docs/Settings.md` | FAQ screen, anchor `#what-each-answer-may-draw-on` | Every setting, and the scope choice. |
+| `…/Tusks-Vault-Foundry/blob/main/docs/Hosting.md` | FAQ screen | The Forge and other hosted Foundry. |
+| `…/Tusks-Vault-Foundry/blob/main/SECURITY.md` | FAQ screen, About screen | Credentials, and what could go wrong. |
+| `…/Tusks-Vault-Foundry/issues` | FAQ screen, About screen | The issue tracker. |
+| `…/Tusks-Vault-Foundry/blob/main/LICENSE` | About screen | The licence. |
+| `…/Tusks-Vault-Foundry/blob/main/CHANGELOG.md` | `module.json` → `changelog` | What changed in each release, newest first. Foundry links this from the package browser, so it is compiled into every install. |
+| `https://buymeacoffee.com/kochitusker` | About screen only | Somewhere to support the project. Nothing else in the module renders it. |
+
+**Why these point here and not at the site.** The division at the top of this
+page assigns Lite, settings and diagnostics to this repository. The site agrees
+in as many words — its Foundry page says "for Lite, the module's own README is
+the guide" — so a Lite help link pointing at the site would be a front door onto
+documentation that is not there. If Lite documentation ever moves onto the site,
+these move with it, in the same change.
 
 The site mirrors the layout of
 [Tusk's Tomes](https://kochitusker.github.io/Tusks-Tomes/), the sister project,

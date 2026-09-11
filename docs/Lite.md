@@ -13,12 +13,28 @@ Turn it on under **Module Settings → Where answers come from → Lite**.
 
 ## The folder
 
-Lite reads one journal folder, named **Tusk's Lore** by default. Make it in the
-Journals sidebar, put entries in it, and that is your corpus.
+Lite reads a journal folder called **Tusk's Lore** by default. Make it in the
+Journals sidebar, put entries in it, and that is your corpus — and you can point
+it at folders you already have as well.
 
-Rename it under **Module Settings → Lite: lore folder** if you already keep your
-notes somewhere else. Anything outside that folder is invisible to Lite —
-including compendium content, actor biographies and scene notes.
+**Subfolders are read too**, as deep as you nest them, so organising into
+*Tusk's Lore / NPCs*, *Tusk's Lore / Sessions* and so on works.
+
+### You do not have to move your existing notes
+
+If you already keep journals in folders of your own — and most GMs do, often
+folders that came with an adventure you bought — open **Module Settings → Lite:
+also read these folders** and tick them. Lite reads them alongside your lore
+folder, subfolders and all.
+
+Nothing is moved and nothing is copied. Your journals stay exactly where they
+are, and Foundry's permissions still decide who can be answered from what.
+
+You can also just rename the lore folder under **Lite: lore folder** if you would
+rather point at a single folder you already have.
+
+Anything outside those folders is invisible to Lite — including compendium
+content, actor biographies and scene notes.
 
 To see what Lite can actually read, press **F12** and run:
 
@@ -26,15 +42,17 @@ To see what Lite can actually read, press **F12** and run:
 TusksVault.lore()
 ```
 
-That lists every entry it found and how long each one is. If a note you expected
-is missing, it is in the wrong folder.
+That lists every page it found and how long each one is. If a note you expected
+is missing, it is in a folder Lite is not reading — tick that folder, or move the
+note.
 
 ## Two layers
 
 ### Layer 1 — search. On by default, costs nothing.
 
 `/tusk who runs the harbour?` finds the passages that match and quotes them back,
-each cited to the entry it came from.
+each cited to the page it came from — and the citation is a link, so one click
+opens the journal at that page.
 
 **No API key, no network request, no cost, nothing leaves your machine.** It
 matches the words you typed, so it rewards asking with the words your notes use.
@@ -43,7 +61,7 @@ matches the words you typed, so it rewards asking with the words your notes use.
 
 Turn on **Lite: write answers** and set a **Gemini key**. Lite then sends the
 matching passages to Google and writes prose from them, with the same citation
-discipline — same journals, same folder, same permissions.
+discipline — same journals, same folders, same permissions.
 
 Google's [free tier](https://ai.google.dev/pricing) is enough to try it.
 
@@ -51,19 +69,52 @@ Choose the model under **Lite: model**. The picker lists what your key can
 actually reach, best first; the module also moves itself off a model Google
 retires, so a mid-session failure fixes itself rather than needing you.
 
-## Players only ever see what they could already read
+## What each answer may draw on
 
-Lite reads Foundry's own journal permissions. An entry a player cannot open is
-never used to answer that player, so a GM-only note stays GM-only even when a
-player asks the question that would surface it.
+**By default, Tusk reads everything in your lore folders, whoever is asking.**
+The folder is the boundary: what you put in it is what the archivist may say.
+Keep a reveal out of the folder until the party earns it.
 
-That check runs per asker, on every question. It is not a filter applied to the
-answer afterwards — the entry never enters the corpus for that person at all.
+Two other choices read Foundry's journal ownership instead — one for what the
+whole table can open, and an experimental one that answers each person from the
+pages they can open themselves. **[All three, and when to use
+which](Settings.md#what-each-answer-may-draw-on)**.
 
-This is stricter than the Bridge half, where Vault answers from your whole
-archive and has no notion of Foundry permissions. See [the spoiler
-trade-off](Settings.md#the-spoiler-trade-off) before opening either up to
-players.
+The experimental one is worth knowing about even if you never switch it on,
+because it is the one thing Lite does that [Tusk's
+Vault](https://kochitusker.github.io/Tusks-Vault/) structurally cannot. Vault
+reads files on disk, and a file carries no notion of who at your table may read
+it. A journal page carries permissions you already maintain for other reasons —
+so a player who writes their own backstory into the folder can be the only
+person ever answered from it.
+
+## Letting players add their own lore
+
+Journal folders are not a permission boundary in Foundry, so anyone who can
+create a journal entry can put one in your lore folder. That can be exactly what
+you want — player backstories, session notes written by the table's
+record-keeper.
+
+- **Players need permission to create journals at all.** Foundry grants
+  `JOURNAL_CREATE` to **Trusted Player and above** by default. Promote the
+  player, or change it under *User Management → Configure Permissions*.
+- **What they write is private to them by default.** Foundry makes the creator
+  the owner and leaves everyone else at none. You can always read it; you are
+  the GM.
+
+Two things to know before you open this up:
+
+- **On the default scope, what one player writes can answer another.** Every
+  answer reads the whole folder. The [experimental per-player
+  mode](Settings.md#the-experimental-per-player-mode) is what keeps a backstory
+  private to its author.
+- **A note in the folder is not merely quoted — its text goes into the prompt**,
+  so somebody who can edit one can write instructions to the model. The module
+  warns you when it finds an entry in your folder a player can edit. Why that
+  matters, and what shrinks it: [SECURITY.md](../SECURITY.md).
+
+See [the spoiler trade-off](Settings.md#the-spoiler-trade-off) before opening
+either half up to players.
 
 ## Content filters are off by default
 
@@ -84,18 +135,12 @@ no player at your table can read it, and it is never sent to the Foundry server.
 
 But **Foundry does not sandbox modules.** Every other module you have installed
 runs on the same page and can read your browser's storage, including this key.
-Only install modules you trust.
 
-**Use a key made for this and nothing else, and set a spending cap on it** in
-[Google's console](https://console.cloud.google.com/). That turns the worst case
-from an open tab into a fixed number.
-
-Tusk's Vault keeps the key off the browser entirely. It is free, and this is the
-main reason to move up once you have decided you like this.
-
-The same warning appears in Foundry, in the dialog that takes the key — you
-should not have to read a document to find it. The full picture is in
-[SECURITY.md](../SECURITY.md).
+That is the whole of the warning, and it also appears in Foundry itself, in the
+dialog that takes the key — you should not have to read a document to find it.
+What to do about it — capping the spend, when to revoke, and why Tusk's Vault
+keeps keys out of the browser entirely — is in
+**[SECURITY.md](../SECURITY.md#what-can-still-read-a-key-in-your-browser)**.
 
 ## Only the GM's browser ever holds the key
 
@@ -110,12 +155,14 @@ rather than left waiting.
 
 Worth knowing before you decide it is not working properly:
 
-- **It reads one folder of journal entries.** Not your Obsidian vault, not Word
+- **It reads journal entries inside Foundry.** Not your Obsidian vault, not Word
   documents, not PDFs.
 - **It only holds as much as fits in a single question.** A large campaign
-  overflows that, and the passages that did not fit are simply not considered.
-- **It matches words, not meaning.** Ask about "the harbour master" when your
-  notes say "the dockwarden" and it will not connect the two.
+  overflows that. The best match is included even if it has to be cut short, and
+  the answer says *"Read 4 of 11 notes"* when something was left out — but the
+  notes that did not fit are not considered.
+- **It matches words, not meaning.** Letter for letter: `harbours` will not find
+  `harbour`, and `wharf` will not find `harbour master`.
 - **It forgets.** A question it could not answer leaves no trace, so the same
   gap surfaces again next session.
 - **Gemini only**, and only with your own API key.
@@ -140,5 +187,7 @@ TusksVault.models()                            // which models your key can reac
 - **[Settings](Settings.md)** — who may ask, who sees the answer, renaming the
   command.
 - **[Troubleshooting](Troubleshooting.md)** — when Lite answers with nothing.
+- **[Hosted and cloud Foundry](Hosting.md)** — running on The Forge or a server
+  you do not control.
 - **[Tusk's Vault](https://kochitusker.github.io/Tusks-Vault/)** — the full
   archivist, and everything Lite defers to it on.

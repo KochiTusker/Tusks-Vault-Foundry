@@ -127,10 +127,19 @@ per connected GM.
 posts a chat document and nothing else. It holds no credential and makes no
 external request.
 
-**Lite filters the corpus by what the asker may open.** Journal entries carry
-Foundry's ownership, so a GM-only note is not used to answer a player, even
-when it would have matched. This is per-player lore scoping, and it applies to
-both lite layers.
+**Lite can filter the corpus by what the asker may open, page by page.** Journal
+pages carry their own Foundry ownership, and *Lite: what each answer may draw on*
+can read it, so a GM-only page is not used to answer a player even when it sits
+inside an entry that player can read.
+
+**This is opt-in, and the default reads the whole folder.** Foundry creates every
+journal entry with no player access at all, so filtering by ownership out of the
+box answers "I could not find anything" to every player question until the GM has
+set permissions on every entry. On the default, **the folder is the boundary**:
+what you put in it is what the archivist may say to anyone allowed to ask.
+
+The ownership check is made page by page, so a restricted page inside a shared
+entry is not used to answer someone who cannot open it.
 
 ---
 
@@ -157,16 +166,29 @@ Tusk's Vault, where the key never enters a browser at all.
 
 ### Your campaign leaks because Foundry is on the open internet
 
+**Whose problem this is.** Foundry's, not this module's. It applies identically
+to every exposed Foundry server with no modules installed at all, and nothing
+here makes it likelier or worse. It is listed because it affects what you should
+keep in your world, not because this module introduces it.
+
 **How.** Foundry serves its data directory as unauthenticated static content.
 If you expose Foundry through a tunnel or a host, anything in that directory is
-reachable by anyone who finds the address.
+reachable by anyone who finds the address. Separately, Foundry serves plain
+**HTTP** by default — so a self-hosted server on a forwarded port is
+unencrypted, and its join and admin passwords cross the wire in clear text,
+unless you give Foundry a certificate or put it behind a tunnel or proxy. A
+managed host does this for you.
 
 **What it costs you.** Your notes, if you put them somewhere Foundry serves.
 
-**What shrinks it.** Keep lore in journal entries, which live in the world
-database behind Foundry's permissions — which is what this module does. Never
-put private files in a module folder. Do not expose Foundry more widely than
-you need.
+**What shrinks it.** All of it is Foundry-side and documented by Foundry
+([hosting](https://foundryvtt.com/article/hosting/),
+[SSL](https://foundryvtt.com/article/ssl/)): serve over HTTPS if you are
+reachable from the internet, and do not expose Foundry more widely than you
+need. On this module's side, keep lore in journal entries, which live in the
+world database behind Foundry's permissions — which is what it does — and never
+put private files in a module folder. See
+[docs/Hosting.md](docs/Hosting.md#part-two-foundrys-own-security-which-this-module-does-not-change).
 
 ### A player reads lore you had not revealed
 
@@ -178,8 +200,38 @@ be told something you were saving.
 actually happen to you.
 
 **What shrinks it.** Restrict **Who may ask**, or set **Who sees the answer** to
-*The GM only*. In lite mode this is already handled: journal permissions are
-enforced per asker.
+*The GM only*. In lite mode, keep unrevealed notes out of the lore folder until
+the party earns them — or switch on the experimental per-player scope, which
+enforces journal permissions per asker.
+
+### A player plants a note that tells the archivist what to do
+
+**How.** Journal folders are not a permission boundary in Foundry, so anyone
+allowed to create a journal entry can put one in your lore folder. Text in that
+folder is not merely quoted back — it goes **into the prompt**, next to the
+archivist's own instructions. Somebody who can write a note can therefore write
+instructions to the model.
+
+**What it costs you on the default scope.** Potentially the folder. Every
+question is answered from everything in it whoever asked, so a note a player can
+edit sits in a prompt beside lore they cannot read, and can ask for it.
+
+**What it costs you under per-player scoping.** Very little, and this is worth
+being precise about. The corpus assembled for a player then contains only
+material that player could already open, so a planted note can influence answers
+to its own author, drawn from their own notes. There is nothing there to steal.
+
+**What shrinks it.** Keep notes players can edit **out of the lore folder** —
+the module warns you when it finds one in there, naming how many. Or switch
+*Lite: what each answer may draw on* to the per-player mode, where the problem
+does not arise. Check who can edit what with *Lite: review lore permissions*, and
+remember Foundry grants journal creation to Trusted Player and above by default.
+
+**What is already handled.** A planted note cannot run script at your table: an
+answer is escaped once before it reaches the chat log, and only tags the module
+itself adds are ever present. And a citation naming a document that was not in
+the prompt is rendered as unverified rather than as a source, so an invented
+reference does not look like a real one.
 
 ### The model says something wrong, and it looks sourced
 
@@ -233,15 +285,23 @@ advice.
 
 ## Known limits
 
-**Whispering bounds who SEES an answer, not what a player can pull.** In bridge
-mode the archive answers from your whole corpus and has no notion of what you
-have revealed yet, so a player who asks about a sealed strongbox can be
-whispered its contents. The whisper hides that from the rest of the table, not
-from the person who asked. Use **Who may ask** to restrict it, or set **Who
-sees the answer** to *The GM only* so you read it first. Tusk's Vault has its
-own switch for answering players at all, off by default.
+**The guard against publishing private notes applies only under per-player
+scoping.** In that mode, an answer drawing on pages not every player can read is
+whispered to the asker and the GMs rather than posted, even when *Who sees the
+answer* says everyone — otherwise per-asker retrieval and public replies would
+cancel each other out. On the default scope there is no per-asker retrieval to
+protect, so both settings are honoured exactly as you set them.
 
-Lite mode does not have this limitation, because journals carry permissions.
+**Whispering bounds who SEES an answer, not what a player can pull.** A player
+who asks about a sealed strongbox can be whispered its contents; the whisper
+hides that from the rest of the table, not from the person who asked. The three
+ways to close it are settings, so they are documented with the settings:
+[the spoiler trade-off](docs/Settings.md#the-spoiler-trade-off).
+
+Lite mode has this limitation on its default scope, which reads the whole lore
+folder whoever asks — the folder is the boundary, so keep unrevealed material out
+of it. The experimental per-player scope closes it, because journal pages carry
+permissions.
 
 **A key in a browser is reachable by anything else in that browser.** Covered
 above. It is the reason layer 1 is the default and layer 2 is opt-in.

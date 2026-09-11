@@ -3,7 +3,9 @@
 Start here, whatever the symptom. One command answers both questions a bug
 report has to answer — what is configured, and what actually happened.
 
-Press **F12** in the GM's browser and run:
+Open **Settings → Module Settings → Tusk's Vault → About** and press
+**Copy diagnostics**. Or, if you would rather use the console, press **F12** and
+run:
 
 ```js
 TusksVault.diagnostics()
@@ -31,11 +33,15 @@ message — so you can quote it without transcribing anything.
 | `TV-ASK-REFUSED` | The asker is below your access policy. | [Who may ask](Settings.md#who-may-ask). |
 | `TV-LITE-NOKEY-HERE` | Written answers are on, but this browser holds no key. | Set the key in the GM's browser — [it is per browser](Lite.md#what-a-key-in-the-browser-means). |
 | `TV-LITE-MODEL-MOVED` | Google retired the model; a replacement was chosen. | Nothing. It already fixed itself. |
+| `TV-LITE-CORPUS-CAPPED` | Your lore did not fit into one question. | Nothing breaks — the best match is still read, cut short if it must be. The answer says how many notes it read. Vault indexes instead of stuffing a prompt. |
+| `TV-LITE-SCOPE-WIDE` | Answers draw on everything you can open, **and** players can create journals. | [Narrow the scope](Settings.md#what-each-answer-may-draw-on), or take journal-creation off your players. |
+| `TV-ANSWER-NARROWED` | A public answer was whispered instead, because it used notes not everyone can read. | Nothing. That is the guard working. |
+| `TV-DISCOVER-NONE` on a hosted Foundry | Vault was not found from your browser. | Vault runs on **your** computer, not the server — see [hosted Foundry](Hosting.md#bridge-on-a-host-you-do-not-control). Safari blocks this; use Chrome or Firefox. |
 | `TV-LITE-403`/`429` | Google refused the key, or you are over quota. | The message is Google's own wording, which names the fix. |
 
 ## Common symptoms
 
-### `/tusk` says it is not a valid command
+### Foundry says the command is not valid
 
 The module did not load, or the command was renamed. Run `TusksVault.selfTest()`
 — if it is not defined at all, the module is not active. If it is,
@@ -50,14 +56,24 @@ there is nothing that can answer. Check a GM is online and that
 
 ### Lite answers "I could not find anything"
 
-Lite reads one journal folder and matches the words you typed. Run
-`TusksVault.lore()` — it lists every entry Lite can actually see. An empty list
-means your notes are in the wrong folder; see [the
+Lite reads the journal folders you point it at, everything nested inside them
+included, and matches the words you typed. Run `TusksVault.lore()`: it lists
+every page Lite can actually see. An empty list means your notes are in the wrong folder; see [the
 folder](Lite.md#the-folder).
 
-If the list looks right, try the words your notes actually use. Lite matches
-words, not meaning — that is [one of the things Vault does
-differently](Lite.md#what-lite-cannot-do).
+If the list looks right, the problem is almost certainly the wording. **Lite
+matches your words letter for letter and has no notion of what they mean**, so:
+
+- **`harbours` does not find `harbour`.** There is no stemming — a plural, a
+  past tense or an `-ing` will miss.
+- **`wharf`, `quayside` and `dockmaster` do not find `harbour master`.** There
+  are no synonyms.
+- **Short words match inside longer ones.** Asking about a `war` also matches
+  `dockwarden`, so a three-letter word can pull up something unrelated.
+
+Ask using the words your notes actually use. This is [the main thing Vault does
+differently](Lite.md#what-lite-cannot-do) — it works out what you meant, so it
+still finds the page when you word it another way.
 
 ### A player got an answer they should not have
 
@@ -66,8 +82,11 @@ what you have revealed. Read [the spoiler
 trade-off](Settings.md#the-spoiler-trade-off) — there are three ways to close it,
 and one of them is a Vault setting.
 
-In **Lite** mode this should not happen: journal permissions are enforced per
-asker. If it did, please report it.
+In **Lite** mode, check the scope first. On the default it reads your whole lore
+folder whoever asks, so this is expected — see [what each answer may draw
+on](Settings.md#what-each-answer-may-draw-on). Under the per-player scope it
+should not happen: run *Lite: review lore permissions* to confirm the page really
+is restricted, and if it is, please report it.
 
 ### It worked yesterday and now returns 403
 
